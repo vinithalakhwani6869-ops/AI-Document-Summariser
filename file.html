@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Summarizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    >
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="nav-shell">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="sidebarToggle" class="icon-button" type="button" aria-label="Open history sidebar">
+            <span class="menu-icon" aria-hidden="true">&#9776;</span>
+          </button>
+
+          <div class="brand-mark">
+            <span class="brand-dot"></span>
+            <div>
+              <p class="brand-label">Professional Workspace</p>
+              <h1>Document Summarizer</h1>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="themeToggle" class="icon-button" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+            <svg id="themeToggleIcon" class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path id="themeTogglePath"></path>
+            </svg>
+          </button>
+
+          <div id="guestActions" class="guest-actions">
+            <button id="loginButton" class="ghost-button" type="button">Login</button>
+            <button id="signupButton" class="secondary-button" type="button">Sign up</button>
+          </div>
+
+          <div id="profileMenu" class="profile-menu" hidden>
+            <button id="avatarButton" class="avatar-button" type="button" aria-label="Open profile menu" aria-expanded="false">
+              <span id="avatarLabel">U</span>
+            </button>
+
+            <div id="profileDropdown" class="profile-dropdown" hidden>
+              <p id="profileEmail" class="profile-email">Signed in user</p>
+              <div class="profile-divider"></div>
+              <button id="historyShortcut" class="profile-action" type="button">My History</button>
+              <button id="logoutButton" class="profile-action" type="button">Logout</button>
+            </div>
+          </div>
+        </div>
+      </header>
+    </div>
+
+    <aside id="sidebarOverlay" class="sidebar-overlay" hidden></aside>
+
+    <aside id="historySidebar" class="history-sidebar is-closed" aria-hidden="true" hidden>
+      <div class="sidebar-header">
+        <div>
+          <p class="sidebar-label">Workspace</p>
+          <h2>Saved Summaries</h2>
+        </div>
+        <button id="closeSidebarButton" class="icon-button" type="button" aria-label="Close history sidebar">&times;</button>
+      </div>
+      <p class="sidebar-copy">
+        Open previous summaries instantly and continue where you left off.
+      </p>
+      <div id="historyList" class="history-list" aria-live="polite">
+        <p class="history-empty">Login to view your saved summaries.</p>
+      </div>
+    </aside>
+
+    <section id="authModal" class="auth-modal" hidden>
+      <div id="authBackdrop" class="auth-backdrop"></div>
+      <div class="auth-dialog panel">
+        <button id="authCloseButton" class="icon-button auth-close-button" type="button" aria-label="Close authentication dialog">&times;</button>
+
+        <div class="panel-heading">
+          <p class="section-tag">Account</p>
+          <h3 id="authTitle">Login</h3>
+          <p id="authSubtitle">Sign in to save your summaries and access history.</p>
+        </div>
+
+        <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button id="loginTab" class="auth-tab is-active" type="button">Login</button>
+          <button id="signupTab" class="auth-tab" type="button">Sign up</button>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <label class="field">
+            <span>Email</span>
+            <input id="authEmail" type="email" autocomplete="email" required>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input id="authPassword" type="password" autocomplete="current-password" required>
+          </label>
+
+          <div class="auth-actions">
+            <button id="authSubmitButton" class="secondary-button" type="submit">
+              <span id="authSubmitLabel">Login</span>
+            </button>
+            <button id="authCancelButton" class="ghost-button" type="button">Cancel</button>
+          </div>
+        </form>
+
+        <div id="authWarning" class="auth-warning" hidden></div>
+        <div id="authMessage" class="auth-message" aria-live="polite">
+          Login is optional. Sign in only if you want saved history.
+        </div>
+      </div>
+    </section>
+
+    <main class="content-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Secure AI document workflow</p>
+          <h2>Summarize one file or many, then decide whether to keep the result.</h2>
+          <p class="hero-text">
+            Guests can upload and summarize immediately. Sign in only if you want your
+            summaries saved and available later from the history sidebar.
+          </p>
+          <div class="hero-pills">
+            <span>Guest mode</span>
+            <span>Saved history</span>
+            <span>Multi-file upload</span>
+            <span>Copy and download</span>
+          </div>
+        </div>
+      </section>
+
+      <main class="workspace-grid">
+        <section class="panel upload-panel">
+          <div class="panel-heading">
+            <p class="section-tag">Upload</p>
+            <h3>Choose documents</h3>
+            <p>
+              Upload up to five PDF, TXT, or DOCX files at once, then choose how the summary
+              should be written.
+            </p>
+          </div>
+
+          <form id="uploadform" class="upload-form">
+            <label for="fileInput" class="upload-dropzone" id="dropzone">
+              <span class="dropzone-icon" aria-hidden="true">+</span>
+              <span class="dropzone-title">Select one or more files</span>
+              <span class="dropzone-subtitle">PDF, TXT, and DOCX supported</span>
+            </label>
+            <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
+
+            <div class="controls-grid">
+              <label class="field">
+                <span>Summary type</span>
+                <select id="summaryType">
+                  <option value="short">Short</option>
+                  <option value="detailed">Detailed</option>
+                  <option value="bullets">Bullet Points</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="file-meta">
+              <div>
+                <p class="meta-label">Selected files</p>
+                <p id="fileName" class="file-name">No files selected</p>
+              </div>
+              <div>
+                <p class="meta-label">Status</p>
+                <p id="statusText" class="status-text">Waiting for upload</p>
+              </div>
+            </div>
+
+            <div id="selectedFiles" class="selected-files">
+              <p class="selected-files-empty">Your selected files will appear here.</p>
+            </div>
+
+            <button class="primary-button" id="submitButton" type="submit">
+              <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
+              <span id="submitButtonLabel">Generate Summary</span>
+            </button>
+          </form>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="panel-heading">
+            <p class="section-tag">Result</p>
+            <h3>Summary output</h3>
+            <p>
+              Guests can summarize freely. Login adds saved history, accessible from the
+              sidebar or your profile menu.
+            </p>
+          </div>
+
+          <div id="messageBox" class="message-box" aria-live="polite">
+            Ready when you are. You can summarize now, or login to save your history.
+          </div>
+
+          <div id="guestNotice" class="guest-notice">
+            <span>Login to save your summaries.</span>
+            <button id="saveHistoryButton" class="ghost-button" type="button">Save history</button>
+          </div>
+
+          <article class="summary-card" id="summaryCard">
+            <div class="summary-header">
+              <div>
+                <p class="summary-label">Generated output</p>
+                <h3 id="summaryTitle">Summary</h3>
+              </div>
+              <div class="summary-header-actions">
+                <span id="summaryBadge" class="summary-badge">Ready</span>
+                <button id="copyButton" class="ghost-button" type="button">Copy</button>
+                <button id="downloadButton" class="ghost-button" type="button">Download</button>
+              </div>
+            </div>
+            <div id="summaryMeta" class="summary-meta">No saved summary selected.</div>
+            <div id="summary" class="summary-content">
+              Generate a summary or open one from your history.
+            </div>
+          </article>
+        </section>
+      </main>
+    </main>
+
+    
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
