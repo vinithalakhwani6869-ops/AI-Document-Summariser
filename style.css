@@ -1,4 +1,6 @@
 :root {
+  /* Fallback before JS measures header; updated via ResizeObserver */
+  --sidebar-offset: 120px;
   color-scheme: light;
   --bg: #edf3fb;
   --bg-deep: #dce7f6;
@@ -89,6 +91,11 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
   font-family: "Manrope", sans-serif;
   color: var(--text);
   background:
@@ -96,7 +103,16 @@ body {
     radial-gradient(circle at bottom right, rgba(15, 139, 141, 0.12), transparent 32%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
   transition: background 220ms ease, color 220ms ease;
+  overflow: hidden;
+}
+
+.page-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 button,
@@ -121,9 +137,10 @@ select,
   width: min(1380px, calc(100% - 32px));
   margin: 0 auto;
   padding-top: 24px;
+  flex-shrink: 0;
   position: relative;
   overflow: visible;
-  /* Below auth modal and sidebar; above page content for dropdowns */
+  /* Below auth modal and sidebar; above scrolling main content */
   z-index: 200;
 }
 
@@ -792,11 +809,10 @@ mark {
 
 .history-sidebar {
   position: fixed;
-  top: 120px;
   left: 20px;
-  bottom: 20px;
+  top: var(--sidebar-offset);
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
   width: min(340px, calc(100% - 40px));
-  max-height: calc(100vh - 140px);
   padding: 24px;
   z-index: 1200;
   display: flex;
@@ -989,9 +1005,8 @@ mark {
     grid-template-columns: 1fr;
   }
 
-  .history-sidebar {
-    top: 104px;
-    max-height: calc(100vh - 124px);
+  :root {
+    --sidebar-offset: 108px;
   }
 }
 
@@ -1048,10 +1063,12 @@ mark {
   }
 
   .history-sidebar {
-    top: 96px;
     left: 10px;
-    bottom: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
     width: min(360px, calc(100% - 20px));
-    max-height: calc(100vh - 106px);
+  }
+
+  :root {
+    --sidebar-offset: 100px;
   }
 }

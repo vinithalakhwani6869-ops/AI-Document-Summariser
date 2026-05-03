@@ -1,7 +1,8 @@
 const PROVIDER_NAME = "cohere";
 const COHERE_API_URL = "https://api.cohere.com/v2/chat";
 const COHERE_MODEL = "command-a-03-2025";
-const REQUEST_TIMEOUT_MS = 20000;
+const REQUEST_TIMEOUT_MS = 45000;
+const { normalizeSummaryOutput } = require("../utils/summaryText");
 
 function createProviderError(status, message, code) {
   const error = new Error(message);
@@ -11,10 +12,6 @@ function createProviderError(status, message, code) {
   return error;
 }
 
-function cleanSummary(summary) {
-  return typeof summary === "string" ? summary.replace(/\s+/g, " ").trim() : "";
-}
-
 function extractCohereSummary(responseBody) {
   const contentItems = Array.isArray(responseBody?.message?.content)
     ? responseBody.message.content
@@ -22,18 +19,29 @@ function extractCohereSummary(responseBody) {
 
   for (const item of contentItems) {
     if (item?.type === "text" && typeof item.text === "string" && item.text.trim()) {
-      return cleanSummary(item.text);
+      return normalizeSummaryOutput(item.text);
     }
   }
 
   if (typeof responseBody?.text === "string" && responseBody.text.trim()) {
-    return cleanSummary(responseBody.text);
+    return normalizeSummaryOutput(responseBody.text);
   }
 
   return "";
 }
 
-async function summarize({ prompt }) {
+function resolveMaxTokens(summaryType) {
+  switch (summaryType) {
+    case "detailed":
+      return 2500;
+    case "bullets":
+      return 1500;
+    default:
+      return 220;
+  }
+}
+
+async function summarize({ prompt, summaryType = "short" }) {
   const apiKey = process.env.COHERE_API_KEY;
 
   if (!apiKey || apiKey === "your_key_here") {
@@ -56,7 +64,7 @@ async function summarize({ prompt }) {
         model: COHERE_MODEL,
         stream: false,
         temperature: 0.3,
-        max_tokens: 220,
+        max_tokens: resolveMaxTokens(summaryType),
         messages: [
           {
             role: "system",

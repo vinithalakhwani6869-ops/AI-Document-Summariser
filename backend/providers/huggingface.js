@@ -5,7 +5,8 @@ const HUGGING_FACE_API_URL = `https://api-inference.huggingface.co/models/${enco
 )}`;
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 5000;
-const REQUEST_TIMEOUT_MS = 25000;
+const REQUEST_TIMEOUT_MS = 45000;
+const { normalizeSummaryOutput } = require("../utils/summaryText");
 
 function createProviderError(status, message, code) {
   const error = new Error(message);
@@ -21,21 +22,17 @@ function sleep(ms) {
   });
 }
 
-function cleanSummary(summary) {
-  return typeof summary === "string" ? summary.replace(/\s+/g, " ").trim() : "";
-}
-
 function extractSummary(responseBody) {
   if (Array.isArray(responseBody)) {
     for (const item of responseBody) {
       if (typeof item?.summary_text === "string" && item.summary_text.trim()) {
-        return cleanSummary(item.summary_text);
+        return normalizeSummaryOutput(item.summary_text);
       }
     }
   }
 
   if (typeof responseBody?.summary_text === "string" && responseBody.summary_text.trim()) {
-    return cleanSummary(responseBody.summary_text);
+    return normalizeSummaryOutput(responseBody.summary_text);
   }
 
   return "";
@@ -49,7 +46,18 @@ function isModelLoading(responseBody) {
   return getResponseErrorMessage(responseBody).toLowerCase().includes("model is currently loading");
 }
 
-async function summarize({ prompt, requestId }) {
+function resolveGenerationLengths(summaryType) {
+  switch (summaryType) {
+    case "detailed":
+      return { max_length: 512, min_length: 120 };
+    case "bullets":
+      return { max_length: 380, min_length: 80 };
+    default:
+      return { max_length: 220, min_length: 60 };
+  }
+}
+
+async function summarize({ prompt, requestId, summaryType = "short" }) {
   const apiKey = process.env.HUGGINGFACE_API_KEY;
 
   if (!apiKey || apiKey === "your_key_here") {
@@ -74,8 +82,7 @@ async function summarize({ prompt, requestId }) {
         body: JSON.stringify({
           inputs: prompt.huggingFaceInput,
           parameters: {
-            max_length: 220,
-            min_length: 60,
+            ...resolveGenerationLengths(summaryType),
             do_sample: false,
           },
           options: {

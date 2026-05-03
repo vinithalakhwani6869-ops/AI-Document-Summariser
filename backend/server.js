@@ -1,8 +1,29 @@
+const fs = require("fs");
 const path = require("path");
 const { randomUUID } = require("crypto");
+const dotenv = require("dotenv");
+
+const backendEnvPath = path.join(__dirname, ".env");
+const rootEnvPath = path.join(__dirname, "..", ".env");
+
+dotenv.config({ path: rootEnvPath });
+dotenv.config({ path: backendEnvPath, override: true });
+
+console.log(
+  JSON.stringify({
+    event: "env_paths",
+    backendDotenvExists: fs.existsSync(backendEnvPath),
+    rootDotenvExists: fs.existsSync(rootEnvPath),
+    geminiKeyConfigured: Boolean(
+      String(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
+    ),
+    cohereKeyConfigured: Boolean(String(process.env.COHERE_API_KEY || "").trim()),
+    huggingFaceKeyConfigured: Boolean(String(process.env.HUGGINGFACE_API_KEY || "").trim()),
+  })
+);
+
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
 const multer = require("multer");
 const mammoth = require("mammoth");
 const pdfParse = require("pdf-parse");
@@ -16,11 +37,6 @@ const {
   summarizeDocument,
   normalizeSummaryType,
 } = require("./services/summarizerService");
-
-dotenv.config({ path: path.join(__dirname, ".env") });
-console.log("GEMINI KEY LOADED:", Boolean(process.env.GEMINI_API_KEY));
-console.log("COHERE KEY LOADED:", Boolean(process.env.COHERE_API_KEY));
-console.log("HF KEY LOADED:", Boolean(process.env.HUGGINGFACE_API_KEY));
 
 const app = express();
 const PORT = process.env.PORT || 3000;

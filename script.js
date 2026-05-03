@@ -1017,6 +1017,34 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSelectedFiles([]);
   renderHistory([]);
   updateUserState();
+
+  function syncSidebarOffset() {
+    const nav = document.querySelector(".nav-shell");
+
+    if (!nav) {
+      return;
+    }
+
+    const gapPx = 12;
+    const bottom = nav.getBoundingClientRect().bottom;
+    document.documentElement.style.setProperty(
+      "--sidebar-offset",
+      `${Math.ceil(bottom + gapPx)}px`
+    );
+  }
+
+  syncSidebarOffset();
+  window.addEventListener("resize", syncSidebarOffset);
+
+  const navShell = document.querySelector(".nav-shell");
+
+  if (navShell && typeof ResizeObserver !== "undefined") {
+    const observer = new ResizeObserver(() => syncSidebarOffset());
+    observer.observe(navShell);
+  }
+
+  requestAnimationFrame(() => syncSidebarOffset());
+
   initializeFirebase().catch((error) => {
     console.warn("Firebase startup check failed.", error);
   });
