@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://ai-document-summariser-j4a7.onrender.com";
+const API_BASE_URL = window.location.origin;
 const THEME_STORAGE_KEY = "theme";
 const DEFAULT_SUMMARY_TEXT = "Generate a summary or open one from your history.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
@@ -240,6 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     logDebug("Sidebar opened");
+    document.body.classList.add("sidebar-open");
     elements.historySidebar.hidden = false;
     elements.sidebarOverlay.hidden = false;
     requestAnimationFrame(() => {
@@ -260,6 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     logDebug("Sidebar closed");
+    document.body.classList.remove("sidebar-open");
     elements.historySidebar.classList.remove("is-open");
     elements.historySidebar.classList.add("is-closed");
     elements.sidebarOverlay.classList.remove("is-visible");
@@ -1006,6 +1008,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   applyTheme(getInitialTheme());
+  document.body.classList.remove("sidebar-open");
   elements.historySidebar?.classList.add("is-closed");
   elements.authModal?.classList.add("is-closed");
   setAuthMode("login");
