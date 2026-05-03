@@ -96,6 +96,7 @@ body {
     radial-gradient(circle at bottom right, rgba(15, 139, 141, 0.12), transparent 32%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
   transition: background 220ms ease, color 220ms ease;
+  overflow-x: hidden;
 }
 
 button,
@@ -131,6 +132,7 @@ select,
   padding: 24px 0 40px;
   display: grid;
   gap: 22px;
+  min-width: 0;
 }
 
 .topbar,
@@ -164,6 +166,7 @@ select,
 .profile-menu {
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 
 .topbar-left,
@@ -408,20 +411,41 @@ select,
 .workspace-grid {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 22px;
+  align-items: start;
+  min-width: 0;
 }
 
 .panel {
+  display: grid;
+  align-content: start;
+  gap: 18px;
   padding: 24px;
+  min-width: 0;
+  overflow: visible;
+}
+
+.workspace-grid > * ,
+.panel > * ,
+.summary-header > * ,
+.file-meta > * ,
+.guest-notice > * {
+  min-width: 0;
+}
+
+.panel-heading {
+  display: grid;
+  gap: 10px;
 }
 
 .panel-heading p {
-  margin: 10px 0 0;
+  margin: 0;
   line-height: 1.6;
 }
 
 .upload-form {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .upload-dropzone {
@@ -570,7 +594,7 @@ input[type="file"] {
 }
 
 .message-box {
-  margin-top: 18px;
+  margin-top: 0;
   padding: 14px 16px;
   border-radius: 16px;
   background: var(--message-bg);
@@ -591,7 +615,7 @@ input[type="file"] {
 }
 
 .guest-notice {
-  margin-top: 14px;
+  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -604,7 +628,7 @@ input[type="file"] {
 }
 
 .summary-card {
-  margin-top: 18px;
+  margin-top: 0;
   padding: 22px;
   border-radius: 24px;
   background: var(--panel-strong);
@@ -684,12 +708,13 @@ mark {
 
 .history-sidebar {
   position: fixed;
-  top: 20px;
+  top: 120px;
   left: 20px;
   bottom: 20px;
   width: min(340px, calc(100% - 40px));
+  max-height: calc(100vh - 140px);
   padding: 24px;
-  z-index: 50;
+  z-index: 1200;
   display: flex;
   flex-direction: column;
   transform: translateX(-108%);
@@ -724,6 +749,8 @@ mark {
 .history-list {
   display: grid;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -850,12 +877,17 @@ mark {
   .workspace-grid {
     grid-template-columns: 1fr;
   }
+
+  .history-sidebar {
+    top: 104px;
+    max-height: calc(100vh - 124px);
+  }
 }
 
 @media (max-width: 720px) {
   .nav-shell,
   .content-shell {
-    width: min(100% - 20px, 1380px);
+    width: min(calc(100% - 20px), 1380px);
   }
 
   .topbar {
@@ -867,6 +899,12 @@ mark {
   .summary-header,
   .file-meta {
     flex-wrap: wrap;
+  }
+
+  .topbar-actions,
+  .file-meta,
+  .summary-header {
+    width: 100%;
   }
 
   .guest-actions,
@@ -890,5 +928,13 @@ mark {
   .auth-dialog {
     padding: 20px;
     border-radius: 22px;
+  }
+
+  .history-sidebar {
+    top: 96px;
+    left: 10px;
+    bottom: 10px;
+    width: min(360px, calc(100% - 20px));
+    max-height: calc(100vh - 106px);
   }
 }

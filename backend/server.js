@@ -12,10 +12,15 @@ const {
   getPublicFirebaseConfig,
   hasPublicFirebaseConfig,
 } = require("./firebaseAdmin");
+const {
+  summarizeDocument,
+  normalizeSummaryType,
+} = require("./services/summarizerService");
 
-dotenv.config();
-console.log("HF KEY LOADED:", Boolean(process.env.HUGGINGFACE_API_KEY));
+dotenv.config({ path: path.join(__dirname, ".env") });
+console.log("GEMINI KEY LOADED:", Boolean(process.env.GEMINI_API_KEY));
 console.log("COHERE KEY LOADED:", Boolean(process.env.COHERE_API_KEY));
+console.log("HF KEY LOADED:", Boolean(process.env.HUGGINGFACE_API_KEY));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,39 +28,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 5;
 const MAX_COMBINED_TEXT_LENGTH = 18000;
 const HISTORY_LIMIT = 30;
-const COHERE_API_URL = "https://api.cohere.com/v2/chat";
-const COHERE_MODEL = "command-a-03-2025";
-const HUGGING_FACE_MODEL = "sshleifer/distilbart-cnn-12-6";
-const HUGGING_FACE_API_URL = `https://api-inference.huggingface.co/models/${HUGGING_FACE_MODEL}`;
-const MAX_SUMMARY_INPUT_LENGTH = 5000;
-const MAX_HUGGING_FACE_RETRIES = 5;
-const RETRY_DELAY_MS = 5000;
-const DEFAULT_SUMMARY_ERROR =
-  "Summarization service is temporarily unavailable. Please try again in a few seconds.";
 const DEFAULT_FILE_PLACEHOLDER = "document";
-const SUMMARY_TYPE_CONFIG = {
-  short: {
-    label: "Short",
-    cohereInstruction:
-      "Create a short executive summary in one compact paragraph with 3 to 4 sentences.",
-    huggingFacePrefix:
-      "Create a short executive summary in one compact paragraph with 3 to 4 sentences.\n\n",
-  },
-  detailed: {
-    label: "Detailed",
-    cohereInstruction:
-      "Create a detailed summary with a short overview paragraph followed by several explanatory paragraphs covering the main ideas clearly.",
-    huggingFacePrefix:
-      "Create a detailed summary with a short overview paragraph followed by several explanatory paragraphs covering the main ideas clearly.\n\n",
-  },
-  bullets: {
-    label: "Bullet Points",
-    cohereInstruction:
-      "Create a concise summary using bullet points only. Start with a brief one-line overview, then add clear bullet points for the key takeaways.",
-    huggingFacePrefix:
-      "Create a concise summary using bullet points only. Start with a brief one-line overview, then add clear bullet points for the key takeaways.\n\n",
-  },
-};
 const supportedFileTypes = {
   ".pdf": ["application/pdf", "application/octet-stream"],
   ".txt": ["text/plain", "application/octet-stream"],
@@ -115,14 +88,6 @@ function logServerError(error, req, context = "server") {
   if (error.stack) {
     console.error(error.stack);
   }
-}
-
-function getSummaryTypeConfig(summaryType) {
-  return SUMMARY_TYPE_CONFIG[summaryType] || SUMMARY_TYPE_CONFIG.short;
-}
-
-function normalizeSummaryType(summaryType) {
-  return SUMMARY_TYPE_CONFIG[summaryType] ? summaryType : "short";
 }
 
 function escapeFirestoreTimestamp(timestamp) {
@@ -223,20 +188,6 @@ function normalizeText(text) {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function truncateTextForSummarization(text) {
-  if (text.length <= MAX_SUMMARY_INPUT_LENGTH) {
-    return text;
-  }
-
-  return `${text.slice(0, MAX_SUMMARY_INPUT_LENGTH)}...`;
-}
-
 function buildCombinedDocumentText(filesWithText) {
   const combinedSections = [];
   let characterCount = 0;
@@ -317,255 +268,6 @@ async function extractTextFromFiles(files) {
   };
 }
 
-function extractHuggingFaceSummary(responseBody) {
-  if (Array.isArray(responseBody)) {
-    for (const item of responseBody) {
-      if (typeof item?.summary_text === "string" && item.summary_text.trim()) {
-        return item.summary_text.trim();
-      }
-    }
-  }
-
-  if (typeof responseBody?.summary_text === "string" && responseBody.summary_text.trim()) {
-    return responseBody.summary_text.trim();
-  }
-
-  return "";
-}
-
-function cleanSummaryOutput(summary) {
-  return summary.replace(/\s+/g, " ").trim();
-}
-
-function buildSummaryPrompt(fileName, excerpt, summaryType) {
-  const typeConfig = getSummaryTypeConfig(summaryType);
-
-  return {
-    system:
-      "You summarize documents for a professional web app. Keep the output polished, readable, and useful.",
-    user: `File name: ${fileName}\nSummary type: ${typeConfig.label}\nInstructions: ${typeConfig.cohereInstruction}\n\nDocument text:\n${excerpt}`,
-    huggingFaceInput: `${typeConfig.huggingFacePrefix}File name: ${fileName}\nDocument text:\n${excerpt}`,
-  };
-}
-
-function extractCohereSummary(responseBody) {
-  const contentItems = Array.isArray(responseBody?.message?.content)
-    ? responseBody.message.content
-    : [];
-
-  for (const item of contentItems) {
-    if (item?.type === "text" && typeof item.text === "string" && item.text.trim()) {
-      return item.text.trim();
-    }
-  }
-
-  if (typeof responseBody?.text === "string" && responseBody.text.trim()) {
-    return responseBody.text.trim();
-  }
-
-  return "";
-}
-
-async function requestCohereSummary(excerpt, fileName, summaryType, req) {
-  if (!process.env.COHERE_API_KEY || process.env.COHERE_API_KEY === "your_key_here") {
-    throw createHttpError(
-      500,
-      "Cohere API key is missing. Add a valid key in backend/.env to enable primary summarization."
-    );
-  }
-
-  const prompt = buildSummaryPrompt(fileName, excerpt, summaryType);
-  console.log(`[${req.requestId}] cohere: attempting primary summarization`);
-
-  const response = await fetch(COHERE_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: COHERE_MODEL,
-      stream: false,
-      temperature: 0.3,
-      max_tokens: 220,
-      messages: [
-        {
-          role: "system",
-          content: prompt.system,
-        },
-        {
-          role: "user",
-          content: prompt.user,
-        },
-      ],
-    }),
-  });
-
-  const responseBody = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const apiError =
-      responseBody?.message ||
-      responseBody?.error ||
-      `Cohere API request failed with status ${response.status}.`;
-    const error = createHttpError(response.status, apiError);
-    error.responseBody = responseBody;
-    throw error;
-  }
-
-  const summary = cleanSummaryOutput(extractCohereSummary(responseBody));
-
-  if (!summary) {
-    throw createHttpError(502, "Cohere returned an empty or invalid summary response.");
-  }
-
-  console.log(`[${req.requestId}] cohere: primary summarization succeeded`);
-  return summary;
-}
-
-function isModelLoadingResponse(responseBody) {
-  const errorMessage =
-    typeof responseBody?.error === "string" ? responseBody.error.toLowerCase() : "";
-
-  return errorMessage.includes("model is currently loading");
-}
-
-function hasHuggingFaceError(responseBody) {
-  return typeof responseBody?.error === "string" && responseBody.error.trim().length > 0;
-}
-
-async function requestHuggingFaceSummary(excerpt, fileName, summaryType, req) {
-  const prompt = buildSummaryPrompt(fileName, excerpt, summaryType);
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= MAX_HUGGING_FACE_RETRIES; attempt += 1) {
-    let responseBody = null;
-
-    try {
-      const response = await fetch(HUGGING_FACE_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          inputs: prompt.huggingFaceInput,
-          parameters: {
-            max_length: 220,
-            min_length: 60,
-            do_sample: false,
-          },
-          options: {
-            wait_for_model: true,
-            use_cache: true,
-          },
-        }),
-      });
-
-      responseBody = await response.json().catch(() => null);
-      console.log("HF RAW RESPONSE:", responseBody);
-
-      if (Array.isArray(responseBody)) {
-        const summary = cleanSummaryOutput(extractHuggingFaceSummary(responseBody));
-
-        if (summary) {
-          return summary;
-        }
-      }
-
-      if (isModelLoadingResponse(responseBody)) {
-        const loadingError = createHttpError(503, responseBody.error);
-        lastError = loadingError;
-
-        if (attempt < MAX_HUGGING_FACE_RETRIES) {
-          console.warn(
-            `[${req.requestId}] huggingface retry ${attempt}/${MAX_HUGGING_FACE_RETRIES}: ${responseBody.error}`
-          );
-          await sleep(RETRY_DELAY_MS);
-          continue;
-        }
-
-        break;
-      }
-
-      if (hasHuggingFaceError(responseBody)) {
-        const apiError = createHttpError(502, responseBody.error);
-        lastError = apiError;
-
-        if (attempt < MAX_HUGGING_FACE_RETRIES) {
-          console.warn(
-            `[${req.requestId}] huggingface retry ${attempt}/${MAX_HUGGING_FACE_RETRIES}: ${responseBody.error}`
-          );
-          await sleep(RETRY_DELAY_MS);
-          continue;
-        }
-
-        break;
-      }
-
-      if (!response.ok) {
-        const statusError = createHttpError(
-          response.status,
-          `Hugging Face API request failed with status ${response.status}.`
-        );
-        lastError = statusError;
-
-        if (attempt < MAX_HUGGING_FACE_RETRIES) {
-          console.warn(
-            `[${req.requestId}] huggingface retry ${attempt}/${MAX_HUGGING_FACE_RETRIES}: ${statusError.message}`
-          );
-          await sleep(RETRY_DELAY_MS);
-          continue;
-        }
-
-        break;
-      }
-
-      const summary = cleanSummaryOutput(extractHuggingFaceSummary(responseBody));
-
-      if (summary) {
-        return summary;
-      }
-
-      lastError = createHttpError(
-        502,
-        "The summarization service returned an empty or unexpected response."
-      );
-
-      if (attempt < MAX_HUGGING_FACE_RETRIES) {
-        console.warn(
-          `[${req.requestId}] huggingface retry ${attempt}/${MAX_HUGGING_FACE_RETRIES}: ${lastError.message}`
-        );
-        await sleep(RETRY_DELAY_MS);
-        continue;
-      }
-
-      break;
-    } catch (error) {
-      lastError = error;
-
-      if (attempt < MAX_HUGGING_FACE_RETRIES) {
-        console.warn(
-          `[${req.requestId}] huggingface retry ${attempt}/${MAX_HUGGING_FACE_RETRIES}: ${error.message}`
-        );
-        await sleep(RETRY_DELAY_MS);
-        continue;
-      }
-
-      break;
-    }
-  }
-
-  console.error(
-    `[${req.requestId}] huggingface final failure after ${MAX_HUGGING_FACE_RETRIES} attempts: ${lastError?.message || "Unknown error"}`
-  );
-
-  throw createHttpError(
-    502,
-    DEFAULT_SUMMARY_ERROR
-  );
-}
-
 async function saveSummaryToHistory({ userId, fileName, summary, summaryType }) {
   const db = getFirebaseDb();
   const createdAt = new Date();
@@ -615,43 +317,6 @@ async function getUserHistory(userId) {
   });
 }
 
-async function summarizeDocument(text, fileName, summaryType, req) {
-  const normalizedText = normalizeText(text);
-
-  if (!normalizedText) {
-    throw createHttpError(400, "The uploaded document does not contain readable text.");
-  }
-
-  const excerpt = truncateTextForSummarization(normalizedText);
-
-  try {
-    return await requestCohereSummary(excerpt, fileName, summaryType, req);
-  } catch (cohereError) {
-    logServerError(cohereError, req, "cohere");
-    console.warn(`[${req.requestId}] cohere: falling back to huggingface`);
-
-    if (
-      !process.env.HUGGINGFACE_API_KEY ||
-      process.env.HUGGINGFACE_API_KEY === "your_key_here"
-    ) {
-      console.error(
-        `[${req.requestId}] summarization final failure: Cohere failed and Hugging Face API key is missing`
-      );
-      throw createHttpError(502, DEFAULT_SUMMARY_ERROR);
-    }
-
-    try {
-      return await requestHuggingFaceSummary(excerpt, fileName, summaryType, req);
-    } catch (huggingFaceError) {
-      logServerError(huggingFaceError, req, "huggingface");
-      console.error(
-        `[${req.requestId}] summarization final failure: Cohere and Hugging Face both failed`
-      );
-      throw createHttpError(502, DEFAULT_SUMMARY_ERROR);
-    }
-  }
-}
-
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "file.html"));
 });
@@ -694,7 +359,12 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
     }
 
     const normalizedSummaryType = normalizeSummaryType(summaryType);
-    const summary = await summarizeDocument(text, fileName, normalizedSummaryType, req);
+    const summary = await summarizeDocument(
+      text,
+      fileName,
+      normalizedSummaryType,
+      req.requestId
+    );
     const historyItem = req.user
       ? await saveSummaryToHistory({
           userId: req.user.uid,
