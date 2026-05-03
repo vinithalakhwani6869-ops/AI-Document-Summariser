@@ -1,4 +1,4 @@
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = "https://ai-document-summariser-j4a7.onrender.com";
 const THEME_STORAGE_KEY = "theme";
 const DEFAULT_SUMMARY_TEXT = "Generate a summary or open one from your history.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
