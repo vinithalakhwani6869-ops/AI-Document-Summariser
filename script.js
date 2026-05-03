@@ -180,6 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
     content = DEFAULT_SUMMARY_TEXT,
   }) {
     elements.summaryTitle.textContent = title;
+    elements.summaryTitle.setAttribute("title", title);
     elements.summaryMeta.textContent = meta;
     elements.summaryBadge.textContent = badge;
     renderSummary(content);
@@ -511,21 +512,28 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.selectedFiles.innerHTML =
         '<p class="selected-files-empty">Your selected files will appear here.</p>';
       elements.fileNameText.textContent = "No files selected";
+      elements.fileNameText.removeAttribute("title");
       elements.dropzone?.classList.remove("has-files");
       return;
     }
 
     elements.fileNameText.textContent =
       files.length === 1 ? files[0].name : `${files.length} files selected`;
+    if (files.length === 1) {
+      elements.fileNameText.setAttribute("title", files[0].name);
+    } else {
+      elements.fileNameText.removeAttribute("title");
+    }
     elements.dropzone?.classList.add("has-files");
 
     elements.selectedFiles.innerHTML = files
       .map((file) => {
         const sizeLabel = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+        const safeName = escapeHtml(file.name);
 
         return `
-          <article class="selected-file-item">
-            <p class="selected-file-name">${escapeHtml(file.name)}</p>
+          <article class="selected-file-item" title="${safeName}">
+            <p class="selected-file-name">${safeName}</p>
             <p class="selected-file-meta">${escapeHtml(sizeLabel)}</p>
           </article>
         `;

@@ -123,6 +123,7 @@ select,
   padding-top: 24px;
   position: relative;
   overflow: visible;
+  /* Below auth modal and sidebar; above page content for dropdowns */
   z-index: 200;
 }
 
@@ -218,6 +219,14 @@ select,
 
 .brand-mark h1 {
   font-size: 1.25rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-mark > div {
+  min-width: 0;
 }
 
 .brand-label {
@@ -370,7 +379,9 @@ select,
 .hero-copy h2 {
   font-size: clamp(2rem, 4vw, 3.35rem);
   line-height: 1.05;
-  max-width: 11ch;
+  max-width: min(42rem, 100%);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .hero-text,
@@ -411,17 +422,20 @@ select,
 .workspace-grid {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 22px;
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
 }
 
 .panel {
   display: grid;
   align-content: start;
+  align-items: start;
   gap: 18px;
   padding: 24px;
   min-width: 0;
-  overflow: visible;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .workspace-grid > * ,
@@ -453,12 +467,23 @@ select,
   place-items: center;
   gap: 8px;
   min-height: 180px;
+  min-width: 0;
+  max-width: 100%;
   padding: 24px;
   border-radius: 22px;
   border: 2px dashed rgba(15, 139, 141, 0.34);
   background: linear-gradient(180deg, var(--accent-soft), var(--panel-strong));
   text-align: center;
   cursor: pointer;
+  overflow: hidden;
+}
+
+.dropzone-title,
+.dropzone-subtitle {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .upload-dropzone.has-files {
@@ -529,12 +554,24 @@ input[type="file"] {
   border-radius: 18px;
   border: 1px solid var(--border);
   background: var(--panel-strong);
+  overflow: hidden;
 }
 
 .file-name,
 .status-text {
   margin: 0;
   font-weight: 700;
+}
+
+.file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .selected-files {
@@ -544,6 +581,9 @@ input[type="file"] {
   border-radius: 18px;
   background: var(--panel-alt);
   border: 1px solid var(--border);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .selected-file-item {
@@ -551,6 +591,9 @@ input[type="file"] {
   border-radius: 14px;
   background: var(--panel-strong);
   border: 1px solid var(--border);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .selected-file-name,
@@ -561,6 +604,9 @@ input[type="file"] {
 .selected-file-name {
   color: var(--heading);
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .selected-file-meta {
@@ -600,6 +646,10 @@ input[type="file"] {
   background: var(--message-bg);
   border: 1px solid var(--border);
   line-height: 1.6;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message-box.is-loading {
@@ -625,6 +675,13 @@ input[type="file"] {
   background: var(--panel-alt);
   border: 1px solid var(--border);
   color: var(--muted);
+  min-width: 0;
+}
+
+.guest-notice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .summary-card {
@@ -634,6 +691,11 @@ input[type="file"] {
   background: var(--panel-strong);
   border: 1px solid var(--border);
   min-height: 320px;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .summary-header {
@@ -641,6 +703,19 @@ input[type="file"] {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 14px;
+}
+
+.summary-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.summary-header h3 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .summary-header-actions {
@@ -664,13 +739,21 @@ input[type="file"] {
 .summary-meta {
   margin-bottom: 16px;
   font-size: 0.92rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .summary-content {
   display: grid;
   gap: 12px;
   min-height: 220px;
+  min-width: 0;
   line-height: 1.8;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
 }
 
 .summary-paragraph,
@@ -699,7 +782,8 @@ mark {
   background: rgba(6, 12, 22, 0.34);
   opacity: 0;
   transition: opacity 220ms ease;
-  z-index: 40;
+  /* Above header/topbar so the sheet + dim layer stack predictably */
+  z-index: 1100;
 }
 
 .sidebar-overlay.is-visible {
@@ -717,6 +801,7 @@ mark {
   z-index: 1200;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   transform: translateX(-108%);
   opacity: 0;
   pointer-events: none;
@@ -739,6 +824,17 @@ mark {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+}
+
+.sidebar-header > div {
+  min-width: 0;
+}
+
+.sidebar-header h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-copy {
@@ -778,6 +874,9 @@ mark {
 .history-item-title {
   color: var(--heading);
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-item-type,
@@ -792,7 +891,13 @@ mark {
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 60;
+  padding: max(16px, env(safe-area-inset-top, 0px))
+    max(16px, env(safe-area-inset-right, 0px))
+    max(16px, env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  /* Must sit above .nav-shell / .topbar (200–400) and sidebar (1200) */
+  z-index: 2500;
   opacity: 0;
   transition: opacity 180ms ease;
 }
@@ -816,9 +921,15 @@ mark {
 .auth-dialog {
   position: relative;
   width: min(440px, calc(100% - 24px));
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(90vh, calc(100vh - 32px));
   padding: 24px;
   z-index: 1;
   transform: translateY(10px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .auth-modal.is-open .auth-dialog {
@@ -920,6 +1031,12 @@ mark {
   .auth-actions button,
   .guest-notice button {
     flex: 1;
+  }
+
+  .brand-mark h1 {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .hero-copy,
