@@ -1,8 +1,9 @@
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = "https://ai-document-summariser-j4a7.onrender.com";
 const THEME_STORAGE_KEY = "theme";
 const DEFAULT_SUMMARY_TEXT = "Generate a summary or open one from your history.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
 const GUEST_HISTORY_MESSAGE = "Login to view your saved summaries";
+const PROFILE_DROPDOWN_VIEWPORT_GAP = 12;
 const allowedExtensions = ["pdf", "txt", "docx"];
 const themeIcons = {
   light:
@@ -49,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
     messageBox: document.getElementById("messageBox"),
     profileDropdown: document.getElementById("profileDropdown"),
     profileEmail: document.getElementById("profileEmail"),
+    profileName: document.getElementById("profileName"),
     profileMenu: document.getElementById("profileMenu"),
     saveHistoryButton: document.getElementById("saveHistoryButton"),
     selectedFiles: document.getElementById("selectedFiles"),
@@ -62,6 +64,9 @@ document.addEventListener("DOMContentLoaded", () => {
     summary: document.getElementById("summary"),
     summaryBadge: document.getElementById("summaryBadge"),
     summaryMeta: document.getElementById("summaryMeta"),
+    summaryTypeButton: document.getElementById("summaryTypeButton"),
+    summaryTypeLabel: document.getElementById("summaryTypeLabel"),
+    summaryTypeMenu: document.getElementById("summaryTypeMenu"),
     summaryTitle: document.getElementById("summaryTitle"),
     summaryTypeSelect: document.getElementById("summaryType"),
     themeToggle: document.getElementById("themeToggle"),
@@ -79,7 +84,14 @@ document.addEventListener("DOMContentLoaded", () => {
     historyRestored: false,
     latestSummaryText: "",
     selectedHistoryId: null,
+    summaryTypeMenuOpen: false,
   };
+
+  const summaryTypeOptions = [
+    { value: "short", label: "Short" },
+    { value: "detailed", label: "Detailed" },
+    { value: "bullets", label: "Bullet Points" },
+  ];
 
   const missingCriticalElements = [
     "fileInput",
@@ -128,6 +140,96 @@ document.addEventListener("DOMContentLoaded", () => {
         setMessage(error.message || "Something went wrong.", "error");
       }
     });
+  }
+
+  function getSummaryTypeLabel(value) {
+    return summaryTypeOptions.find((option) => option.value === value)?.label || "Short";
+  }
+
+  function getSummaryTypeOptionElements() {
+    return Array.from(document.querySelectorAll("[data-summary-type]"));
+  }
+
+  function closeSummaryTypeMenu() {
+    if (!elements.summaryTypeMenu || !elements.summaryTypeButton || !elements.summaryTypeSelect) {
+      return;
+    }
+
+    state.summaryTypeMenuOpen = false;
+    elements.summaryTypeSelect.parentElement?.classList.remove("is-open");
+    elements.summaryTypeMenu.classList.remove("is-open");
+    elements.summaryTypeButton.setAttribute("aria-expanded", "false");
+    window.setTimeout(() => {
+      if (!state.summaryTypeMenuOpen) {
+        elements.summaryTypeMenu.hidden = true;
+      }
+    }, 180);
+  }
+
+  function openSummaryTypeMenu() {
+    if (!elements.summaryTypeMenu || !elements.summaryTypeButton || !elements.summaryTypeSelect) {
+      return;
+    }
+
+    state.summaryTypeMenuOpen = true;
+    elements.summaryTypeMenu.hidden = false;
+    elements.summaryTypeSelect.parentElement?.classList.add("is-open");
+    requestAnimationFrame(() => {
+      elements.summaryTypeMenu.classList.add("is-open");
+      elements.summaryTypeButton.setAttribute("aria-expanded", "true");
+      const selectedOption = getSummaryTypeOptionElements().find(
+        (option) => option.dataset.summaryType === elements.summaryTypeSelect.value
+      );
+      selectedOption?.focus();
+    });
+  }
+
+  function toggleSummaryTypeMenu() {
+    if (state.summaryTypeMenuOpen) {
+      closeSummaryTypeMenu();
+      return;
+    }
+
+    openSummaryTypeMenu();
+  }
+
+  function syncSummaryTypeUI(value) {
+    if (elements.summaryTypeSelect) {
+      elements.summaryTypeSelect.value = value;
+    }
+
+    if (elements.summaryTypeLabel) {
+      elements.summaryTypeLabel.textContent = getSummaryTypeLabel(value);
+    }
+
+    getSummaryTypeOptionElements().forEach((option) => {
+      const isSelected = option.dataset.summaryType === value;
+      option.classList.toggle("is-selected", isSelected);
+      option.setAttribute("aria-selected", String(isSelected));
+      option.tabIndex = isSelected ? 0 : -1;
+    });
+  }
+
+  function moveSummaryTypeSelection(direction) {
+    const options = getSummaryTypeOptionElements();
+
+    if (!options.length || !elements.summaryTypeSelect) {
+      return;
+    }
+
+    const currentIndex = Math.max(
+      0,
+      options.findIndex((option) => option.dataset.summaryType === elements.summaryTypeSelect.value)
+    );
+    const nextIndex = (currentIndex + direction + options.length) % options.length;
+    const nextOption = options[nextIndex];
+
+    if (!nextOption) {
+      return;
+    }
+
+    syncSummaryTypeUI(nextOption.dataset.summaryType);
+    nextOption.focus();
   }
 
   function setMessage(message, variant) {
@@ -353,6 +455,59 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 180);
   }
 
+  function isProfileDropdownOpen() {
+    return Boolean(
+      elements.profileDropdown &&
+      !elements.profileDropdown.hidden &&
+      elements.profileDropdown.classList.contains("is-open")
+    );
+  }
+
+  function getProfileDisplayName(user) {
+    const displayName = user?.displayName?.trim();
+
+    if (displayName) {
+      return displayName;
+    }
+
+    const email = user?.email?.trim();
+
+    if (email) {
+      return email.split("@")[0];
+    }
+
+    return "Signed in user";
+  }
+
+  function positionProfileDropdown() {
+    if (!elements.profileDropdown || !elements.profileMenu || elements.profileDropdown.hidden) {
+      return;
+    }
+
+    const dropdown = elements.profileDropdown;
+    dropdown.style.removeProperty("--profile-dropdown-shift");
+
+    const availableWidth = Math.max(220, window.innerWidth - PROFILE_DROPDOWN_VIEWPORT_GAP * 2);
+    dropdown.style.setProperty(
+      "--profile-dropdown-max-width",
+      `${Math.min(320, availableWidth)}px`
+    );
+
+    const rect = dropdown.getBoundingClientRect();
+    let shiftX = 0;
+
+    if (rect.right > window.innerWidth - PROFILE_DROPDOWN_VIEWPORT_GAP) {
+      shiftX -= rect.right - (window.innerWidth - PROFILE_DROPDOWN_VIEWPORT_GAP);
+    }
+
+    if (rect.left + shiftX < PROFILE_DROPDOWN_VIEWPORT_GAP) {
+      shiftX += PROFILE_DROPDOWN_VIEWPORT_GAP - (rect.left + shiftX);
+    }
+
+    dropdown.style.setProperty("--profile-dropdown-shift", `${shiftX}px`);
+    dropdown.classList.toggle("is-compact", window.innerWidth <= 768);
+  }
+
   function openProfileDropdown() {
     if (!elements.profileDropdown || !elements.avatarButton) {
       return;
@@ -361,7 +516,9 @@ document.addEventListener("DOMContentLoaded", () => {
     logDebug("Profile dropdown opened");
     elements.profileDropdown.hidden = false;
     requestAnimationFrame(() => {
+      positionProfileDropdown();
       elements.profileDropdown.classList.add("is-open");
+      requestAnimationFrame(positionProfileDropdown);
     });
     elements.avatarButton.setAttribute("aria-expanded", "true");
   }
@@ -377,6 +534,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     logDebug("Profile dropdown closed");
     elements.profileDropdown.classList.remove("is-open");
+    elements.profileDropdown.classList.remove("is-compact");
+    elements.profileDropdown.style.removeProperty("--profile-dropdown-shift");
+    elements.profileDropdown.style.removeProperty("--profile-dropdown-max-width");
     elements.avatarButton.setAttribute("aria-expanded", "false");
     window.setTimeout(() => {
       if (!elements.profileDropdown.classList.contains("is-open")) {
@@ -574,12 +734,24 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.avatarLabel.textContent = email ? email.charAt(0).toUpperCase() : "U";
       }
 
+      if (elements.profileName) {
+        elements.profileName.textContent = getProfileDisplayName(state.currentUser);
+      }
+
       if (elements.profileEmail) {
         elements.profileEmail.textContent = email || "Signed in user";
       }
 
       setMessage("Signed in. New summaries will be saved to your history.", "success");
     } else {
+      if (elements.profileName) {
+        elements.profileName.textContent = "Signed in user";
+      }
+
+      if (elements.profileEmail) {
+        elements.profileEmail.textContent = "Signed in user";
+      }
+
       state.selectedHistoryId = null;
       state.historyRestored = false;
       renderHistory([]);
@@ -731,6 +903,52 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthMode("signup");
   });
 
+  bindEvent(elements.summaryTypeButton, "click", "Summary type toggle clicked", (event) => {
+    event.stopPropagation();
+    toggleSummaryTypeMenu();
+  });
+
+  bindEvent(elements.summaryTypeButton, "keydown", "Summary type trigger keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      openSummaryTypeMenu();
+    }
+  });
+
+  getSummaryTypeOptionElements().forEach((option) => {
+    bindEvent(option, "click", "Summary type option clicked", () => {
+      const value = option.dataset.summaryType;
+
+      if (!value) {
+        return;
+      }
+
+      syncSummaryTypeUI(value);
+      closeSummaryTypeMenu();
+      elements.summaryTypeButton?.focus();
+    });
+  });
+
+  bindEvent(elements.summaryTypeMenu, "keydown", "Summary type menu keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveSummaryTypeSelection(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveSummaryTypeSelection(-1);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSummaryTypeMenu();
+      elements.summaryTypeButton?.focus();
+    }
+  });
+
   bindEvent(elements.avatarButton, "click", "Avatar clicked", (event) => {
     event.stopPropagation();
 
@@ -768,6 +986,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.addEventListener("click", (event) => {
+    if (
+      elements.summaryTypeSelect &&
+      !elements.summaryTypeSelect.parentElement?.contains(event.target)
+    ) {
+      closeSummaryTypeMenu();
+    }
+
     if (!elements.profileMenu || elements.profileMenu.hidden) {
       return;
     }
@@ -783,6 +1008,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     logDebug("Escape key pressed");
+    closeSummaryTypeMenu();
     closeProfileDropdown();
 
     if (elements.authModal && !elements.authModal.hidden) {
@@ -1008,6 +1234,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   applyTheme(getInitialTheme());
+  syncSummaryTypeUI(elements.summaryTypeSelect.value);
   document.body.classList.remove("sidebar-open");
   elements.historySidebar?.classList.add("is-closed");
   elements.authModal?.classList.add("is-closed");
@@ -1038,6 +1265,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   syncSidebarOffset();
   window.addEventListener("resize", syncSidebarOffset);
+  window.addEventListener("resize", () => {
+    if (isProfileDropdownOpen()) {
+      positionProfileDropdown();
+    }
+  });
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (isProfileDropdownOpen()) {
+        positionProfileDropdown();
+      }
+    },
+    { passive: true }
+  );
 
   const navShell = document.querySelector(".nav-shell");
 

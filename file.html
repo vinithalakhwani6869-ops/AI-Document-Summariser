@@ -23,7 +23,6 @@
           <div class="brand-mark">
             <span class="brand-dot"></span>
             <div>
-              <p class="brand-label">Professional Workspace</p>
               <h1>Document Summarizer</h1>
             </div>
           </div>
@@ -47,7 +46,10 @@
             </button>
 
             <div id="profileDropdown" class="profile-dropdown" hidden>
-              <p id="profileEmail" class="profile-email">Signed in user</p>
+              <div class="profile-identity">
+                <p id="profileName" class="profile-name">Signed in user</p>
+                <p id="profileEmail" class="profile-email">Signed in user</p>
+              </div>
               <div class="profile-divider"></div>
               <button id="historyShortcut" class="profile-action" type="button">My History</button>
               <button id="logoutButton" class="profile-action" type="button">Logout</button>
@@ -118,114 +120,140 @@
     </section>
 
     <div class="page-scroll">
-    <main class="content-shell">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Secure AI summaries</p>
-          <h2>Turn PDFs, Word, and text into clear summaries—one file or several.</h2>
-          <p class="hero-text">
-            Start without an account. Sign in to save summaries to your history and reopen them anytime from the sidebar.
-          </p>
-          <div class="hero-pills">
-            <span>No signup required</span>
-            <span>Saved summary history</span>
-            <span>Multi-file upload</span>
-            <span>Copy &amp; export</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="workspace-grid">
-        <section class="panel upload-panel">
-          <div class="panel-heading">
-            <p class="section-tag">Upload</p>
-            <h3>Choose documents</h3>
-            <p>
-              Upload up to five PDF, TXT, or DOCX files at once, then choose how the summary
-              should be written.
+      <main class="content-shell">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">AI document summaries</p>
+            <h2>Turn dense documents into clear summaries in seconds.</h2>
+            <p class="hero-text">
+              Upload one file or several, choose the summary style you need, and keep moving. Sign in only if you want your history saved and ready to reopen later.
             </p>
+            <div class="hero-pills">
+              <span>No signup required</span>
+              <span>Saved summary history</span>
+              <span>Multi-file upload</span>
+              <span>Copy &amp; export</span>
+            </div>
           </div>
+        </section>
 
-          <form id="uploadform" class="upload-form">
-            <label for="fileInput" class="upload-dropzone" id="dropzone">
-              <span class="dropzone-icon" aria-hidden="true">+</span>
-              <span class="dropzone-title">Select one or more files</span>
-              <span class="dropzone-subtitle">PDF, TXT, and DOCX supported</span>
-            </label>
-            <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
+        <section class="workspace-grid">
+          <section class="panel upload-panel">
+            <div class="panel-heading">
+              <p class="section-tag">Upload</p>
+              <h3>Choose documents</h3>
+              <p>
+                Upload up to five PDF, TXT, or DOCX files at once, then choose how the summary
+                should be written.
+              </p>
+            </div>
 
-            <div class="controls-grid">
-              <label class="field">
-                <span>Summary type</span>
-                <select id="summaryType">
-                  <option value="short">Short</option>
-                  <option value="detailed">Detailed</option>
-                  <option value="bullets">Bullet Points</option>
-                </select>
+            <form id="uploadform" class="upload-form">
+              <label for="fileInput" class="upload-dropzone" id="dropzone">
+                <span class="dropzone-icon" aria-hidden="true">+</span>
+                <span class="dropzone-title">Select one or more files</span>
+                <span class="dropzone-subtitle">PDF, TXT, and DOCX supported</span>
               </label>
-            </div>
+              <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
 
-            <div class="file-meta">
-              <div>
-                <p class="meta-label">Selected files</p>
-                <p id="fileName" class="file-name">No files selected</p>
+              <div class="controls-grid">
+                <label class="field">
+                  <span>Summary type</span>
+                  <div class="custom-select" id="summaryTypeSelect">
+                    <input type="hidden" id="summaryType" value="short">
+                    <button
+                      id="summaryTypeButton"
+                      class="custom-select-trigger"
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded="false"
+                      aria-labelledby="summaryTypeLabel"
+                    >
+                      <span class="custom-select-copy">
+                        <span class="custom-select-caption">Summary style</span>
+                        <span id="summaryTypeLabel" class="custom-select-value">Short</span>
+                      </span>
+                      <span class="custom-select-chevron" aria-hidden="true"></span>
+                    </button>
+                    <div id="summaryTypeMenu" class="custom-select-menu" hidden>
+                      <button class="custom-select-option is-selected" type="button" role="option" data-summary-type="short" aria-selected="true">
+                        <span class="custom-select-option-title">Short</span>
+                        <span class="custom-select-option-copy">Quick and concise overview</span>
+                      </button>
+                      <button class="custom-select-option" type="button" role="option" data-summary-type="detailed" aria-selected="false">
+                        <span class="custom-select-option-title">Detailed</span>
+                        <span class="custom-select-option-copy">More context with fuller explanation</span>
+                      </button>
+                      <button class="custom-select-option" type="button" role="option" data-summary-type="bullets" aria-selected="false">
+                        <span class="custom-select-option-title">Bullet Points</span>
+                        <span class="custom-select-option-copy">Scannable key points and takeaways</span>
+                      </button>
+                    </div>
+                  </div>
+                </label>
               </div>
-              <div>
-                <p class="meta-label">Status</p>
-                <p id="statusText" class="status-text">Waiting for upload</p>
+
+              <div class="file-meta">
+                <div>
+                  <p class="meta-label">Selected files</p>
+                  <p id="fileName" class="file-name">No files selected</p>
+                </div>
+                <div>
+                  <p class="meta-label">Status</p>
+                  <p id="statusText" class="status-text">Waiting for upload</p>
+                </div>
               </div>
+
+              <div id="selectedFiles" class="selected-files">
+                <p class="selected-files-empty">Your selected files will appear here.</p>
+              </div>
+
+              <button class="primary-button" id="submitButton" type="submit">
+                <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
+                <span id="submitButtonLabel">Generate Summary</span>
+              </button>
+            </form>
+          </section>
+
+          <section class="panel result-panel">
+            <div class="panel-heading">
+              <p class="section-tag">Result</p>
+              <h3>Summary output</h3>
+              <p>
+                Guests can summarize freely. Login adds saved history, accessible from the
+                sidebar or your profile menu.
+              </p>
             </div>
 
-            <div id="selectedFiles" class="selected-files">
-              <p class="selected-files-empty">Your selected files will appear here.</p>
+            <div id="messageBox" class="message-box" aria-live="polite">
+              Ready when you are. You can summarize now, or login to save your history.
             </div>
 
-            <button class="primary-button" id="submitButton" type="submit">
-              <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
-              <span id="submitButtonLabel">Generate Summary</span>
-            </button>
-          </form>
+            <div id="guestNotice" class="guest-notice">
+              <span>Login to save your summaries.</span>
+              <button id="saveHistoryButton" class="ghost-button" type="button">Save history</button>
+            </div>
+
+            <article class="summary-card" id="summaryCard">
+              <div class="summary-header">
+                <div>
+                  <p class="summary-label">Generated output</p>
+                  <h3 id="summaryTitle">Summary</h3>
+                </div>
+                <div class="summary-header-actions">
+                  <span id="summaryBadge" class="summary-badge">Ready</span>
+                  <button id="copyButton" class="ghost-button" type="button">Copy</button>
+                  <button id="downloadButton" class="ghost-button" type="button">Download</button>
+                </div>
+              </div>
+              <div id="summaryMeta" class="summary-meta">No saved summary selected.</div>
+              <div id="summary" class="summary-content">
+                Generate a summary or open one from your history.
+              </div>
+            </article>
+          </section>
         </section>
-
-        <section class="panel result-panel">
-          <div class="panel-heading">
-            <p class="section-tag">Result</p>
-            <h3>Summary output</h3>
-            <p>
-              Guests can summarize freely. Login adds saved history, accessible from the
-              sidebar or your profile menu.
-            </p>
-          </div>
-
-          <div id="messageBox" class="message-box" aria-live="polite">
-            Ready when you are. You can summarize now, or login to save your history.
-          </div>
-
-          <div id="guestNotice" class="guest-notice">
-            <span>Login to save your summaries.</span>
-            <button id="saveHistoryButton" class="ghost-button" type="button">Save history</button>
-          </div>
-
-          <article class="summary-card" id="summaryCard">
-            <div class="summary-header">
-              <div>
-                <p class="summary-label">Generated output</p>
-                <h3 id="summaryTitle">Summary</h3>
-              </div>
-              <div class="summary-header-actions">
-                <span id="summaryBadge" class="summary-badge">Ready</span>
-                <button id="copyButton" class="ghost-button" type="button">Copy</button>
-                <button id="downloadButton" class="ghost-button" type="button">Download</button>
-              </div>
-            </div>
-            <div id="summaryMeta" class="summary-meta">No saved summary selected.</div>
-            <div id="summary" class="summary-content">
-              Generate a summary or open one from your history.
-            </div>
-          </article>
-        </section>
-      </section>
-    </main>
+      </main>
     </div>
     <script type="module" src="script.js"></script>
   </body>
