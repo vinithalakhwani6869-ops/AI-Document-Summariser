@@ -41,7 +41,7 @@ function resolveMaxTokens(summaryType) {
   }
 }
 
-async function summarize({ prompt, summaryType = "short" }) {
+async function summarize({ prompt, requestId, summaryType = "short" }) {
   const apiKey = process.env.COHERE_API_KEY;
 
   if (!apiKey || apiKey === "your_key_here") {
@@ -54,6 +54,15 @@ async function summarize({ prompt, summaryType = "short" }) {
   }, REQUEST_TIMEOUT_MS);
 
   try {
+    console.log(
+      JSON.stringify({
+        requestId,
+        event: "provider_request_sent",
+        provider: PROVIDER_NAME,
+        summaryType,
+        model: COHERE_MODEL,
+      })
+    );
     const response = await fetch(COHERE_API_URL, {
       method: "POST",
       headers: {
@@ -80,13 +89,37 @@ async function summarize({ prompt, summaryType = "short" }) {
     });
 
     const responseBody = await response.json().catch(() => null);
+    console.log(
+      JSON.stringify({
+        requestId,
+        event: "provider_response_received",
+        provider: PROVIDER_NAME,
+        status: response.status,
+        ok: response.ok,
+        bodyPreview: JSON.stringify(responseBody || {}).slice(0, 600),
+      })
+    );
 
     if (!response.ok) {
       const apiMessage =
         responseBody?.message ||
         responseBody?.error ||
         `Cohere API request failed with status ${response.status}.`;
-      throw createProviderError(response.status, apiMessage, "api_error");
+      let errorCode = "api_error";
+
+      if (response.status === 401) {
+        errorCode = "invalid_api_key";
+      } else if (response.status === 402) {
+        errorCode = "quota_exceeded";
+      } else if (response.status === 403) {
+        errorCode = "model_access_blocked";
+      } else if (response.status === 429) {
+        errorCode = "rate_limited";
+      } else if (response.status >= 500) {
+        errorCode = "provider_unavailable";
+      }
+
+      throw createProviderError(response.status, apiMessage, errorCode);
     }
 
     const summary = extractCohereSummary(responseBody);

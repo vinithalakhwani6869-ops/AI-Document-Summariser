@@ -56,6 +56,67 @@ function normalizeSummaryType(summaryType) {
   return SUMMARY_TYPE_CONFIG[summaryType] ? summaryType : "short";
 }
 
+function buildUserFacingSummaryError(failureEvents = []) {
+  if (!failureEvents.length) {
+    return DEFAULT_SUMMARY_ERROR;
+  }
+
+  const statuses = failureEvents.map((failure) => Number(failure.status) || 0);
+  const reasons = failureEvents
+    .map((failure) => String(failure.reason || "").toLowerCase())
+    .filter(Boolean);
+  const codes = failureEvents
+    .map((failure) => String(failure.code || "").toLowerCase())
+    .filter(Boolean);
+
+  if (codes.includes("missing_api_key") || reasons.some((reason) => reason.includes("api key is missing"))) {
+    return "Missing API configuration.";
+  }
+
+  if (
+    statuses.includes(401) ||
+    reasons.some((reason) => reason.includes("invalid api key") || reason.includes("unauthorized"))
+  ) {
+    return "AI provider authentication failed.";
+  }
+
+  if (
+    statuses.includes(402) ||
+    reasons.some((reason) => reason.includes("quota") || reason.includes("credit"))
+  ) {
+    return "AI provider quota exceeded.";
+  }
+
+  if (
+    statuses.includes(403) ||
+    reasons.some((reason) => reason.includes("forbidden") || reason.includes("blocked model access"))
+  ) {
+    return "AI provider access is blocked for this model.";
+  }
+
+  if (statuses.includes(429) || reasons.some((reason) => reason.includes("rate limit"))) {
+    return "AI provider rate limit reached. Please try again shortly.";
+  }
+
+  if (
+    statuses.includes(408) ||
+    statuses.includes(504) ||
+    codes.includes("timeout") ||
+    reasons.some((reason) => reason.includes("timed out"))
+  ) {
+    return "Request timeout while contacting the AI provider.";
+  }
+
+  if (
+    statuses.some((status) => status >= 500) ||
+    reasons.some((reason) => reason.includes("temporarily unavailable"))
+  ) {
+    return "Backend unavailable due to upstream AI provider failure.";
+  }
+
+  return DEFAULT_SUMMARY_ERROR;
+}
+
 function buildSummaryPrompt(fileName, excerpt, summaryType) {
   const typeConfig = getSummaryTypeConfig(summaryType);
 
@@ -96,6 +157,18 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
   const failureEvents = [];
   let lastError = null;
 
+  console.log(
+    JSON.stringify({
+      requestId,
+      event: "summarization_started",
+      fileName,
+      summaryType,
+      inputLength: normalizedText.length,
+      truncatedLength: excerpt.length,
+      providerOrder: PROVIDERS.map((provider) => provider.name),
+    })
+  );
+
   for (const provider of PROVIDERS) {
     try {
       return await provider.summarize({
@@ -134,8 +207,14 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
       lastReason: lastError?.message || "Unknown error",
     })
   );
-
-  throw createHttpError(502, DEFAULT_SUMMARY_ERROR);
+  const userMessage = buildUserFacingSummaryError(failureEvents);
+  const error = createHttpError(502, userMessage);
+  error.details = {
+    userMessage,
+    providerFailures: failureEvents,
+    providerReason: lastError?.message || "Unknown error",
+  };
+  throw error;
 }
 
 module.exports = {

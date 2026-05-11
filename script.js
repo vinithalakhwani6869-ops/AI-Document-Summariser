@@ -1,4 +1,24 @@
-const API_BASE_URL = "https://ai-document-summariser-j4a7.onrender.com";
+const API_BASE_URL = (() => {
+  const configured =
+    (typeof globalThis !== "undefined" &&
+      typeof globalThis.__APP_CONFIG__?.apiBaseUrl === "string" &&
+      globalThis.__APP_CONFIG__.apiBaseUrl.trim()) ||
+    "";
+
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    window.location &&
+    /^https?:$/i.test(window.location.protocol)
+  ) {
+    return window.location.origin.replace(/\/+$/, "");
+  }
+
+  return "https://ai-document-summariser-j4a7.onrender.com";
+})();
 const THEME_STORAGE_KEY = "theme";
 const DEFAULT_SUMMARY_TEXT = "Generate a summary or open one from your history.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
@@ -14,6 +34,7 @@ const themeIcons = {
 
 document.addEventListener("DOMContentLoaded", () => {
   console.log("App initialized");
+  console.log("Resolved API base URL", API_BASE_URL);
 
   const elements = {
     authBackdrop: document.getElementById("authBackdrop"),
@@ -619,10 +640,43 @@ document.addEventListener("DOMContentLoaded", () => {
     closeSidebar();
   }
 
+  function createSafeDebugPayload(payload) {
+    if (!payload || typeof payload !== "object") {
+      return payload;
+    }
+
+    return JSON.parse(
+      JSON.stringify(payload, (key, value) => {
+        if (typeof value === "string" && /authorization|token|api[_-]?key/i.test(key)) {
+          return "[redacted]";
+        }
+
+        if (value instanceof File) {
+          return {
+            name: value.name,
+            size: value.size,
+            type: value.type,
+          };
+        }
+
+        return value;
+      })
+    );
+  }
+
   async function parseApiResponse(response) {
     const rawText = await response.text();
     const contentType = response.headers.get("content-type") || "";
     const looksLikeJson = contentType.includes("application/json");
+    const responsePreview = rawText ? rawText.slice(0, 600) : "";
+
+    console.log("API response received", {
+      url: response.url,
+      status: response.status,
+      ok: response.ok,
+      contentType,
+      bodyPreview: responsePreview,
+    });
 
     if (!rawText) {
       return { ok: response.ok, status: response.status, data: null };
@@ -648,7 +702,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getApiErrorMessage(result, fallbackMessage) {
-    return result?.data?.error || fallbackMessage;
+    return (
+      result?.data?.error ||
+      result?.data?.details?.userMessage ||
+      result?.data?.details?.providerReason ||
+      fallbackMessage
+    );
   }
 
   async function getOptionalAuthHeaders() {
@@ -769,6 +828,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const headers = await getOptionalAuthHeaders();
+      console.log(
+        "History request started",
+        createSafeDebugPayload({
+          url: `${API_BASE_URL}/api/history`,
+          hasAuthorization: Boolean(headers.Authorization),
+        })
+      );
       const response = await fetch(`${API_BASE_URL}/api/history`, { headers });
       const result = await parseApiResponse(response);
 
@@ -794,6 +860,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadFirebaseConfig() {
+    console.log("Firebase config request started", {
+      url: `${API_BASE_URL}/api/config`,
+    });
     const response = await fetch(`${API_BASE_URL}/api/config`);
     const result = await parseApiResponse(response);
 
@@ -1161,6 +1230,15 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("document", file);
       });
 
+      console.log(
+        "Upload request started",
+        createSafeDebugPayload({
+          url: `${API_BASE_URL}/api/upload`,
+          hasAuthorization: Boolean(authHeaders.Authorization),
+          files,
+        })
+      );
+
       const uploadResponse = await fetch(`${API_BASE_URL}/api/upload`, {
         method: "POST",
         headers: authHeaders,
@@ -1174,6 +1252,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
       elements.statusText.textContent = `Extracted ${uploadResult.data.characterCount} characters`;
       setMessage("Files processed successfully. Generating your summary now...", "loading");
+
+      console.log(
+        "Summarize request started",
+        createSafeDebugPayload({
+          url: `${API_BASE_URL}/api/summarize`,
+          hasAuthorization: Boolean(authHeaders.Authorization),
+          payload: {
+            textLength: uploadResult.data.extractedText?.length || 0,
+            fileName: uploadResult.data.fileName,
+            summaryType: elements.summaryTypeSelect.value,
+          },
+        })
+      );
 
       const summaryResponse = await fetch(`${API_BASE_URL}/api/summarize`, {
         method: "POST",
@@ -1225,7 +1316,7 @@ document.addEventListener("DOMContentLoaded", () => {
         title: "Summary",
         meta: "The request did not complete successfully.",
         badge: "Action needed",
-        content: "We could not generate a summary for this request. Please try again.",
+        content: error.message || "The request failed before a summary could be generated.",
       });
       setMessage(error.message || "An unexpected error occurred.", "error");
     } finally {

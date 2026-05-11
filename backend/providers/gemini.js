@@ -120,7 +120,7 @@ function buildGenerationConfig(summaryType) {
   return config;
 }
 
-async function summarize({ prompt, summaryType = "short" }) {
+async function summarize({ prompt, requestId, summaryType = "short" }) {
   const apiKey = normalizeGeminiApiKey();
 
   if (!apiKey) {
@@ -135,6 +135,15 @@ async function summarize({ prompt, summaryType = "short" }) {
   }, REQUEST_TIMEOUT_MS);
 
   try {
+    console.log(
+      JSON.stringify({
+        requestId,
+        event: "provider_request_sent",
+        provider: PROVIDER_NAME,
+        model,
+        summaryType,
+      })
+    );
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -164,6 +173,17 @@ async function summarize({ prompt, summaryType = "short" }) {
     } catch {
       responseBody = null;
     }
+
+    console.log(
+      JSON.stringify({
+        requestId,
+        event: "provider_response_received",
+        provider: PROVIDER_NAME,
+        status: response.status,
+        ok: response.ok,
+        bodyPreview: String(rawText || "").slice(0, 600),
+      })
+    );
 
     if (!response.ok) {
       const apiMessage =

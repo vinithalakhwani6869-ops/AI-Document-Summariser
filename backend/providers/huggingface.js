@@ -73,6 +73,17 @@ async function summarize({ prompt, requestId, summaryType = "short" }) {
     }, REQUEST_TIMEOUT_MS);
 
     try {
+      console.log(
+        JSON.stringify({
+          requestId,
+          event: "provider_request_sent",
+          provider: PROVIDER_NAME,
+          attempt,
+          maxRetries: MAX_RETRIES,
+          model: HUGGING_FACE_MODEL,
+          summaryType,
+        })
+      );
       const response = await fetch(HUGGING_FACE_API_URL, {
         method: "POST",
         headers: {
@@ -94,6 +105,17 @@ async function summarize({ prompt, requestId, summaryType = "short" }) {
       });
 
       const responseBody = await response.json().catch(() => null);
+      console.log(
+        JSON.stringify({
+          requestId,
+          event: "provider_response_received",
+          provider: PROVIDER_NAME,
+          attempt,
+          status: response.status,
+          ok: response.ok,
+          bodyPreview: JSON.stringify(responseBody || {}).slice(0, 600),
+        })
+      );
       const summary = extractSummary(responseBody);
 
       if (summary) {
