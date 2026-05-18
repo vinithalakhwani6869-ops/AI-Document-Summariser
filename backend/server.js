@@ -9,6 +9,23 @@ const rootEnvPath = path.join(__dirname, "..", ".env");
 dotenv.config({ path: rootEnvPath });
 dotenv.config({ path: backendEnvPath, override: true });
 
+const express = require("express");
+const cors = require("cors");
+const multer = require("multer");
+const mammoth = require("mammoth");
+const pdfParse = require("pdf-parse");
+const {
+  getFirebaseAuth,
+  getFirebaseDb,
+  getPublicFirebaseConfig,
+  hasAdminCredentials,
+  hasPublicFirebaseConfig,
+} = require("./firebaseAdmin");
+const {
+  summarizeDocument,
+  normalizeSummaryType,
+} = require("./services/summarizerService");
+
 console.log(
   JSON.stringify({
     event: "startup_environment",
@@ -35,23 +52,6 @@ console.log(
     firebaseAppIdLoaded: Boolean(String(process.env.FIREBASE_APP_ID || "").trim()),
   })
 );
-
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const mammoth = require("mammoth");
-const pdfParse = require("pdf-parse");
-const {
-  getFirebaseAuth,
-  getFirebaseDb,
-  getPublicFirebaseConfig,
-  hasAdminCredentials,
-  hasPublicFirebaseConfig,
-} = require("./firebaseAdmin");
-const {
-  summarizeDocument,
-  normalizeSummaryType,
-} = require("./services/summarizerService");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
