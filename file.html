@@ -126,12 +126,12 @@
             <p class="eyebrow">AI document summaries</p>
             <h2>Turn dense documents into clear summaries in seconds.</h2>
             <p class="hero-text">
-              Upload one file or several, choose the summary style you need, and keep moving. Sign in only if you want your history saved and ready to reopen later.
+              Summarize documents in seconds using AI-powered analysis. Upload PDFs, DOCX, or TXT files and get clean, readable summaries instantly.
             </p>
             <div class="hero-pills">
-              <span>No signup required</span>
-              <span>Saved summary history</span>
               <span>Multi-file upload</span>
+              <span>Drag and drop</span>
+              <span>Saved history</span>
               <span>Copy &amp; export</span>
             </div>
           </div>
@@ -143,16 +143,15 @@
               <p class="section-tag">Upload</p>
               <h3>Choose documents</h3>
               <p>
-                Upload up to five PDF, TXT, or DOCX files at once, then choose how the summary
-                should be written.
+                Upload one or more PDF, DOCX, or TXT files for AI-powered summarization.
               </p>
             </div>
 
             <form id="uploadform" class="upload-form">
               <label for="fileInput" class="upload-dropzone" id="dropzone">
                 <span class="dropzone-icon" aria-hidden="true">+</span>
-                <span class="dropzone-title">Select one or more files</span>
-                <span class="dropzone-subtitle">PDF, TXT, and DOCX supported</span>
+                <span class="dropzone-title">Drop files here or browse your device</span>
+                <span class="dropzone-subtitle">Up to 5 files, 25 MB each. PDF, TXT, and DOCX supported.</span>
               </label>
               <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
 
@@ -220,18 +219,12 @@
               <p class="section-tag">Result</p>
               <h3>Summary output</h3>
               <p>
-                Guests can summarize freely. Login adds saved history, accessible from the
-                sidebar or your profile menu.
+                Your AI-generated summary will appear here.
               </p>
             </div>
 
             <div id="messageBox" class="message-box" aria-live="polite">
-              Ready when you are. You can summarize now, or login to save your history.
-            </div>
-
-            <div id="guestNotice" class="guest-notice">
-              <span>Login to save your summaries.</span>
-              <button id="saveHistoryButton" class="ghost-button" type="button">Save history</button>
+              Sign in to save and revisit your summaries.
             </div>
 
             <article class="summary-card" id="summaryCard">
@@ -241,7 +234,6 @@
                   <h3 id="summaryTitle">Summary</h3>
                 </div>
                 <div class="summary-header-actions">
-                  <span id="summaryBadge" class="summary-badge">Ready</span>
                   <button id="copyButton" class="ghost-button" type="button">Copy</button>
                   <button id="downloadButton" class="ghost-button" type="button">Download</button>
                 </div>

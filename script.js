@@ -20,10 +20,12 @@ const API_BASE_URL = (() => {
   return "https://ai-document-summariser-j4a7.onrender.com";
 })();
 const THEME_STORAGE_KEY = "theme";
-const DEFAULT_SUMMARY_TEXT = "Generate a summary or open one from your history.";
+const DEFAULT_SUMMARY_TEXT = "Your summary will appear here after processing.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
 const GUEST_HISTORY_MESSAGE = "Login to view your saved summaries";
 const PROFILE_DROPDOWN_VIEWPORT_GAP = 12;
+const MAX_FILES_ALLOWED = 5;
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const allowedExtensions = ["pdf", "txt", "docx"];
 const themeIcons = {
   light:
@@ -61,7 +63,6 @@ document.addEventListener("DOMContentLoaded", () => {
     fileNameText: document.getElementById("fileName"),
     form: document.getElementById("uploadform"),
     guestActions: document.getElementById("guestActions"),
-    guestNotice: document.getElementById("guestNotice"),
     historyList: document.getElementById("historyList"),
     historySidebar: document.getElementById("historySidebar"),
     historyShortcut: document.getElementById("historyShortcut"),
@@ -73,7 +74,6 @@ document.addEventListener("DOMContentLoaded", () => {
     profileEmail: document.getElementById("profileEmail"),
     profileName: document.getElementById("profileName"),
     profileMenu: document.getElementById("profileMenu"),
-    saveHistoryButton: document.getElementById("saveHistoryButton"),
     selectedFiles: document.getElementById("selectedFiles"),
     sidebarOverlay: document.getElementById("sidebarOverlay"),
     sidebarToggle: document.getElementById("sidebarToggle"),
@@ -83,7 +83,6 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton: document.getElementById("submitButton"),
     submitButtonLabel: document.getElementById("submitButtonLabel"),
     summary: document.getElementById("summary"),
-    summaryBadge: document.getElementById("summaryBadge"),
     summaryMeta: document.getElementById("summaryMeta"),
     summaryTypeButton: document.getElementById("summaryTypeButton"),
     summaryTypeLabel: document.getElementById("summaryTypeLabel"),
@@ -104,8 +103,10 @@ document.addEventListener("DOMContentLoaded", () => {
     historyItems: [],
     historyRestored: false,
     latestSummaryText: "",
+    selectedFiles: [],
     selectedHistoryId: null,
     summaryTypeMenuOpen: false,
+    dropzoneDragDepth: 0,
   };
 
   const summaryTypeOptions = [
@@ -123,7 +124,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "submitButton",
     "submitButtonLabel",
     "summary",
-    "summaryBadge",
     "summaryMeta",
     "summaryTitle",
     "summaryTypeSelect",
@@ -298,14 +298,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setSummaryState({
     title = "Summary",
-    meta = "No saved summary selected.",
-    badge = "Ready",
+    meta = "No summary generated yet.",
     content = DEFAULT_SUMMARY_TEXT,
   }) {
     elements.summaryTitle.textContent = title;
     elements.summaryTitle.setAttribute("title", title);
     elements.summaryMeta.textContent = meta;
-    elements.summaryBadge.textContent = badge;
     renderSummary(content);
   }
 
@@ -619,7 +617,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setSummaryState({
       title: item.fileName,
       meta: `${item.summaryType} summary saved ${formatTimestamp(item.createdAt)}`,
-      badge: "Latest saved",
       content: item.summary,
     });
     logDebug("Latest summary restored", {
@@ -634,7 +631,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setSummaryState({
       title: item.fileName,
       meta: `${item.summaryType} summary saved ${formatTimestamp(item.createdAt)}`,
-      badge: "History loaded",
       content: item.summary,
     });
     closeSidebar();
@@ -728,10 +724,49 @@ document.addEventListener("DOMContentLoaded", () => {
     return fileName.split(".").pop()?.toLowerCase() || "";
   }
 
+  function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return "1 KB";
+    }
+
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+    }
+
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  function getFileKey(file) {
+    return [file.name, file.size, file.lastModified, file.type].join("::");
+  }
+
+  function syncFileInputWithState() {
+    if (!elements.fileInput) {
+      return;
+    }
+
+    try {
+      const dataTransfer = new DataTransfer();
+      state.selectedFiles.forEach((file) => {
+        dataTransfer.items.add(file);
+      });
+      elements.fileInput.files = dataTransfer.files;
+    } catch (error) {
+      console.warn("Could not sync file input with selected files state.", error);
+    }
+  }
+
+  function setDropzoneActive(isActive) {
+    elements.dropzone?.classList.toggle("is-drag-active", isActive);
+  }
+
   function renderSelectedFiles(files) {
-    if (!files.length) {
+    state.selectedFiles = Array.isArray(files) ? files : [];
+    syncFileInputWithState();
+
+    if (!state.selectedFiles.length) {
       elements.selectedFiles.innerHTML =
-        '<p class="selected-files-empty">Your selected files will appear here.</p>';
+        '<p class="selected-files-empty">No files selected yet. Add documents to begin.</p>';
       elements.fileNameText.textContent = "No files selected";
       elements.fileNameText.removeAttribute("title");
       elements.dropzone?.classList.remove("has-files");
@@ -739,34 +774,166 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     elements.fileNameText.textContent =
-      files.length === 1 ? files[0].name : `${files.length} files selected`;
-    if (files.length === 1) {
-      elements.fileNameText.setAttribute("title", files[0].name);
+      state.selectedFiles.length === 1
+        ? state.selectedFiles[0].name
+        : `${state.selectedFiles.length} files selected`;
+
+    if (state.selectedFiles.length === 1) {
+      elements.fileNameText.setAttribute("title", state.selectedFiles[0].name);
     } else {
       elements.fileNameText.removeAttribute("title");
     }
+
     elements.dropzone?.classList.add("has-files");
 
-    elements.selectedFiles.innerHTML = files
+    elements.selectedFiles.innerHTML = state.selectedFiles
       .map((file) => {
-        const sizeLabel = `${Math.max(1, Math.round(file.size / 1024))} KB`;
         const safeName = escapeHtml(file.name);
+        const fileKey = escapeHtml(getFileKey(file));
 
         return `
           <article class="selected-file-item" title="${safeName}">
-            <p class="selected-file-name">${safeName}</p>
-            <p class="selected-file-meta">${escapeHtml(sizeLabel)}</p>
+            <div class="selected-file-copy">
+              <p class="selected-file-name">${safeName}</p>
+              <p class="selected-file-meta">${escapeHtml(formatFileSize(file.size))}</p>
+            </div>
+            <button
+              class="selected-file-remove"
+              type="button"
+              data-remove-file="${fileKey}"
+              aria-label="Remove ${safeName}"
+            >
+              Remove
+            </button>
           </article>
         `;
       })
       .join("");
   }
 
+  function applySelectedFiles(nextFiles) {
+    renderSelectedFiles(nextFiles);
+    elements.statusText.textContent = nextFiles.length ? "Ready to summarize" : "Waiting for upload";
+  }
+
+  function mergeSelectedFiles(incomingFiles) {
+    const merged = [...state.selectedFiles];
+    const existingKeys = new Set(merged.map((file) => getFileKey(file)));
+    let duplicateCount = 0;
+    const errors = [];
+
+    for (const file of incomingFiles) {
+      const extension = getExtension(file.name);
+
+      if (!allowedExtensions.includes(extension)) {
+        errors.push(`"${file.name}" is not a supported file type.`);
+        continue;
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        errors.push(`"${file.name}" exceeds the 25 MB file limit.`);
+        continue;
+      }
+
+      const fileKey = getFileKey(file);
+
+      if (existingKeys.has(fileKey)) {
+        duplicateCount += 1;
+        continue;
+      }
+
+      if (merged.length >= MAX_FILES_ALLOWED) {
+        errors.push(`You can upload up to ${MAX_FILES_ALLOWED} files at a time.`);
+        break;
+      }
+
+      merged.push(file);
+      existingKeys.add(fileKey);
+    }
+
+    return {
+      files: merged,
+      duplicateCount,
+      errors,
+    };
+  }
+
+  function handleIncomingFiles(incomingFiles, source = "picker") {
+    const normalizedFiles = Array.from(incomingFiles || []);
+
+    if (!normalizedFiles.length) {
+      if (source === "picker" && !state.selectedFiles.length) {
+        applySelectedFiles([]);
+      }
+      return;
+    }
+
+    const { files, duplicateCount, errors } = mergeSelectedFiles(normalizedFiles);
+    applySelectedFiles(files);
+
+    if (errors.length) {
+      setMessage(errors[0], "error");
+      return;
+    }
+
+    if (duplicateCount) {
+      setMessage("Duplicate files were skipped.", "success");
+      return;
+    }
+
+    setMessage("Files added successfully. Generate a summary when you’re ready.", "success");
+    return;
+
+    setMessage(
+      state.currentUser
+        ? "Files added successfully. Generate a summary when you’re ready."
+        : "Files added successfully. Sign in only if you want saved history.",
+      "success"
+    );
+  }
+
+  function removeSelectedFile(fileKey) {
+    const nextFiles = state.selectedFiles.filter((file) => getFileKey(file) !== fileKey);
+    applySelectedFiles(nextFiles);
+
+    if (!nextFiles.length) {
+      setMessage("Your file list is now empty.", null);
+      return;
+    }
+
+    setMessage("File removed from the upload queue.", "success");
+  }
+
+  function processIncomingFiles(incomingFiles, source = "picker") {
+    const normalizedFiles = Array.from(incomingFiles || []);
+
+    if (!normalizedFiles.length) {
+      if (source === "picker" && !state.selectedFiles.length) {
+        applySelectedFiles([]);
+      }
+      return;
+    }
+
+    const { files, duplicateCount, errors } = mergeSelectedFiles(normalizedFiles);
+    applySelectedFiles(files);
+
+    if (errors.length) {
+      setMessage(errors[0], "error");
+      return;
+    }
+
+    if (duplicateCount) {
+      setMessage("Duplicate files were skipped.", "success");
+      return;
+    }
+
+    setMessage("Files added successfully. Generate a summary when you’re ready.", "success");
+  }
+
   function resetSummaryPanel() {
     setSummaryState({
       title: "Summary",
-      meta: "No saved summary selected.",
-      badge: "Ready",
+      meta: "No summary generated yet.",
       content: DEFAULT_SUMMARY_TEXT,
     });
   }
@@ -780,10 +947,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (elements.profileMenu) {
       elements.profileMenu.hidden = !isLoggedIn;
-    }
-
-    if (elements.guestNotice) {
-      elements.guestNotice.hidden = isLoggedIn;
     }
 
     if (isLoggedIn) {
@@ -801,7 +964,7 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.profileEmail.textContent = email || "Signed in user";
       }
 
-      setMessage("Signed in. New summaries will be saved to your history.", "success");
+      setMessage("Signed in. New summaries will be saved automatically.", "success");
     } else {
       if (elements.profileName) {
         elements.profileName.textContent = "Signed in user";
@@ -816,7 +979,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderHistory([]);
       closeProfileDropdown();
       resetSummaryPanel();
-      setMessage("Ready when you are. You can summarize now, or login to save your history.", null);
+      setMessage("Upload your documents to generate a clean summary.", null);
     }
   }
 
@@ -950,10 +1113,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   bindEvent(elements.signupButton, "click", "Signup button clicked", async () => {
     openAuthModal("signup");
-    await initializeFirebase();
-  });
-  bindEvent(elements.saveHistoryButton, "click", "Save history clicked", async () => {
-    openAuthModal("login");
     await initializeFirebase();
   });
   bindEvent(elements.authCancelButton, "click", "Auth cancel clicked", () => {
@@ -1102,37 +1261,52 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvent(elements.dropzone, "click", "Upload area clicked", (event) => {
     event.preventDefault();
     logDebug("File picker triggered");
+    elements.fileInput.value = "";
     elements.fileInput.click();
+  });
+
+  bindEvent(elements.dropzone, "dragenter", "Upload drag entered", (event) => {
+    event.preventDefault();
+    state.dropzoneDragDepth += 1;
+    setDropzoneActive(true);
+  });
+
+  bindEvent(elements.dropzone, "dragover", "Upload drag over", (event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDropzoneActive(true);
+  });
+
+  bindEvent(elements.dropzone, "dragleave", "Upload drag left", (event) => {
+    event.preventDefault();
+    state.dropzoneDragDepth = Math.max(0, state.dropzoneDragDepth - 1);
+
+    if (!state.dropzoneDragDepth) {
+      setDropzoneActive(false);
+    }
+  });
+
+  bindEvent(elements.dropzone, "drop", "Upload files dropped", (event) => {
+    event.preventDefault();
+    state.dropzoneDragDepth = 0;
+    setDropzoneActive(false);
+    processIncomingFiles(event.dataTransfer?.files, "drop");
   });
 
   bindEvent(elements.fileInput, "change", "Upload files changed", () => {
     const files = Array.from(elements.fileInput.files || []);
     logDebug("Upload files selected", files.map((file) => file.name));
+    processIncomingFiles(files, "picker");
+  });
 
-    if (!files.length) {
-      elements.statusText.textContent = "Waiting for upload";
-      renderSelectedFiles([]);
+  bindEvent(elements.selectedFiles, "click", "Selected file action clicked", (event) => {
+    const removeButton = event.target.closest("[data-remove-file]");
+
+    if (!removeButton) {
       return;
     }
 
-    const hasInvalidFile = files.some((file) => !allowedExtensions.includes(getExtension(file.name)));
-
-    if (hasInvalidFile) {
-      elements.fileInput.value = "";
-      renderSelectedFiles([]);
-      elements.statusText.textContent = "Invalid file";
-      setMessage("Please choose only PDF, TXT, or DOCX files.", "error");
-      return;
-    }
-
-    renderSelectedFiles(files);
-    elements.statusText.textContent = "Ready to summarize";
-    setMessage(
-      state.currentUser
-        ? "Files selected successfully. This summary will be saved to your history."
-        : "Files selected successfully. Login is optional if you want this summary saved.",
-      "success"
-    );
+    removeSelectedFile(removeButton.dataset.removeFile);
   });
 
   bindEvent(elements.authForm, "submit", "Auth form submitted", async (event) => {
@@ -1204,7 +1378,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvent(elements.form, "submit", "Summary form submitted", async (event) => {
     event.preventDefault();
 
-    const files = Array.from(elements.fileInput.files || []);
+    const files = [...state.selectedFiles];
 
     if (!files.length) {
       setMessage("Please choose at least one document before generating a summary.", "error");
@@ -1220,7 +1394,6 @@ document.addEventListener("DOMContentLoaded", () => {
       setSummaryState({
         title: "Summary",
         meta: "Preparing your files for AI processing.",
-        badge: "Uploading",
         content: "Processing your documents. This may take a few moments.",
       });
 
@@ -1287,12 +1460,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const historyItem = summaryResult.data.historyItem;
       const savedMeta = historyItem
         ? `${elements.summaryTypeSelect.value} summary saved at ${formatTimestamp(historyItem.createdAt)}.`
-        : `${elements.summaryTypeSelect.value} summary generated in guest mode.`;
+        : `${elements.summaryTypeSelect.value} summary generated successfully.`;
 
       setSummaryState({
         title: historyItem?.fileName || uploadResult.data.fileName,
         meta: savedMeta,
-        badge: historyItem ? "Saved" : "Guest mode",
         content: summaryResult.data.summary,
       });
 
@@ -1300,7 +1472,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setMessage(
         historyItem
           ? `Summary generated and saved for ${uploadResult.data.fileName}.`
-          : `Summary generated for ${uploadResult.data.fileName}. Login if you want it saved to history.`,
+          : `Summary generated for ${uploadResult.data.fileName}.`,
         "success"
       );
 
@@ -1315,7 +1487,6 @@ document.addEventListener("DOMContentLoaded", () => {
       setSummaryState({
         title: "Summary",
         meta: "The request did not complete successfully.",
-        badge: "Action needed",
         content: error.message || "The request failed before a summary could be generated.",
       });
       setMessage(error.message || "An unexpected error occurred.", "error");
@@ -1331,8 +1502,7 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.authModal?.classList.add("is-closed");
   setAuthMode("login");
   setSummaryState({
-    meta: "No saved summary selected.",
-    badge: "Ready",
+    meta: "No summary generated yet.",
     content: DEFAULT_SUMMARY_TEXT,
   });
   renderSelectedFiles([]);
