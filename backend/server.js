@@ -270,38 +270,6 @@ function buildFileLog(files = []) {
   }));
 }
 
-function buildCombinedDocumentText(filesWithText) {
-  const combinedSections = [];
-  let characterCount = 0;
-
-  for (const file of filesWithText) {
-    if (!file.text) {
-      continue;
-    }
-
-    const section = `File: ${file.fileName}\n${file.text}`;
-
-    if (characterCount + section.length > MAX_COMBINED_TEXT_LENGTH) {
-      const remaining = MAX_COMBINED_TEXT_LENGTH - characterCount;
-
-      if (remaining > 0) {
-        combinedSections.push(section.slice(0, remaining));
-        characterCount += remaining;
-      }
-
-      break;
-    }
-
-    combinedSections.push(section);
-    characterCount += section.length;
-  }
-
-  return {
-    extractedText: combinedSections.join("\n\n---\n\n").trim(),
-    characterCount,
-  };
-}
-
 async function extractTextFromFiles(files) {
   if (!Array.isArray(files) || !files.length) {
     throw createHttpError(400, "Please upload at least one document before summarizing.");
@@ -324,29 +292,15 @@ async function extractTextFromFiles(files) {
     throw createHttpError(400, "The uploaded document does not contain readable text.");
   }
 
-  const combined = buildCombinedDocumentText(
-    fileResults.map((file) => ({
-      fileName: file.fileName,
-      text: file.extractedText,
-    }))
-  );
-
-  if (!combined.extractedText) {
-    throw createHttpError(
-      400,
-      "The uploaded files could not be combined into readable text for summarization."
-    );
-  }
-
   return {
     fileName: fileResults.length === 1 ? fileResults[0].fileName : `${fileResults.length} files`,
     fileNames: fileResults.map((file) => file.fileName),
     files: fileResults.map((file) => ({
       fileName: file.fileName,
       characterCount: file.extractedText.length,
+      extractedText: file.extractedText,
     })),
-    extractedText: combined.extractedText,
-    characterCount: combined.characterCount,
+    characterCount: fileResults.reduce((total, file) => total + file.extractedText.length, 0),
   };
 }
 
@@ -470,14 +424,19 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
     const {
       text,
       fileName = DEFAULT_FILE_PLACEHOLDER,
+      files,
       summaryType = "short",
     } = req.body;
 
-    if (!text || typeof text !== "string") {
+    const normalizedSummaryType = normalizeSummaryType(summaryType);
+    const summaryTargets = Array.isArray(files) && files.length
+      ? files
+      : [{ fileName, extractedText: text }];
+
+    if (!summaryTargets.length) {
       throw createHttpError(400, "No document text was provided for summarization.");
     }
 
-    const normalizedSummaryType = normalizeSummaryType(summaryType);
     console.log(
       JSON.stringify({
         requestId: req.requestId,
@@ -486,34 +445,71 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
         fileName,
         summaryType,
         normalizedSummaryType,
-        textLength: text.length,
+        fileCount: summaryTargets.length,
+        textLength: typeof text === "string" ? text.length : null,
       })
     );
-    const summary = await summarizeDocument(
-      text,
-      fileName,
-      normalizedSummaryType,
-      req.requestId
-    );
+    const results = [];
+
+    for (const target of summaryTargets) {
+      const targetFileName = target?.fileName || DEFAULT_FILE_PLACEHOLDER;
+      const targetText = typeof target?.extractedText === "string" ? target.extractedText : "";
+
+      if (!targetText) {
+        results.push({
+          fileName: targetFileName,
+          summaryType: normalizedSummaryType,
+          status: "error",
+          error: "No readable text was extracted for this file.",
+        });
+        continue;
+      }
+
+      try {
+        const summary = await summarizeDocument(
+          targetText,
+          targetFileName,
+          normalizedSummaryType,
+          req.requestId
+        );
+        const historyItem = req.user
+          ? await saveSummaryToHistory({
+              userId: req.user.uid,
+              fileName: targetFileName,
+              summary,
+              summaryType: normalizedSummaryType,
+            })
+          : null;
+
+        results.push({
+          fileName: targetFileName,
+          summaryType: normalizedSummaryType,
+          summary,
+          status: "success",
+          historyItem,
+        });
+      } catch (error) {
+        logServerError(error, req, `summarize_file:${targetFileName}`);
+        results.push({
+          fileName: targetFileName,
+          summaryType: normalizedSummaryType,
+          status: "error",
+          error: error.message || "This file could not be summarized.",
+        });
+      }
+    }
+
     console.log(
       JSON.stringify({
         requestId: req.requestId,
         event: "summarize_completed",
-        fileName,
-        summaryType: normalizedSummaryType,
-        summaryLength: summary.length,
+        fileCount: results.length,
+        successCount: results.filter((result) => result.status === "success").length,
+        errorCount: results.filter((result) => result.status === "error").length,
       })
     );
-    const historyItem = req.user
-      ? await saveSummaryToHistory({
-          userId: req.user.uid,
-          fileName,
-          summary,
-          summaryType: normalizedSummaryType,
-        })
-      : null;
 
-    res.json({ summary, historyItem });
+    res.json({ results });
   } catch (error) {
     logServerError(error, req, "summarize_route");
     next(error);

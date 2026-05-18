@@ -225,22 +225,14 @@
 
             <div id="messageBox" class="message-box" aria-live="polite"></div>
 
-            <article class="summary-card" id="summaryCard">
-              <div class="summary-header">
-                <div>
-                  <p class="summary-label">Generated output</p>
-                  <h3 id="summaryTitle">Summary</h3>
+            <div id="summaryResults" class="summary-results" aria-live="polite">
+              <article class="summary-card summary-card--empty">
+                <div class="summary-meta">No summary generated yet.</div>
+                <div class="summary-content">
+                  Your summary will appear here after processing.
                 </div>
-                <div class="summary-header-actions">
-                  <button id="copyButton" class="ghost-button" type="button">Copy</button>
-                  <button id="downloadButton" class="ghost-button" type="button">Download</button>
-                </div>
-              </div>
-              <div id="summaryMeta" class="summary-meta">No saved summary selected.</div>
-              <div id="summary" class="summary-content">
-                Generate a summary or open one from your history.
-              </div>
-            </article>
+              </article>
+            </div>
           </section>
         </section>
       </main>

@@ -57,8 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
     avatarLabel: document.getElementById("avatarLabel"),
     buttonSpinner: document.getElementById("buttonSpinner"),
     closeSidebarButton: document.getElementById("closeSidebarButton"),
-    copyButton: document.getElementById("copyButton"),
-    downloadButton: document.getElementById("downloadButton"),
     dropzone: document.getElementById("dropzone"),
     fileInput: document.getElementById("fileInput"),
     fileNameText: document.getElementById("fileName"),
@@ -83,12 +81,10 @@ document.addEventListener("DOMContentLoaded", () => {
     statusText: document.getElementById("statusText"),
     submitButton: document.getElementById("submitButton"),
     submitButtonLabel: document.getElementById("submitButtonLabel"),
-    summary: document.getElementById("summary"),
-    summaryMeta: document.getElementById("summaryMeta"),
+    summaryResults: document.getElementById("summaryResults"),
     summaryTypeButton: document.getElementById("summaryTypeButton"),
     summaryTypeLabel: document.getElementById("summaryTypeLabel"),
     summaryTypeMenu: document.getElementById("summaryTypeMenu"),
-    summaryTitle: document.getElementById("summaryTitle"),
     summaryTypeSelect: document.getElementById("summaryType"),
     themeToggle: document.getElementById("themeToggle"),
     themeTogglePath: document.getElementById("themeTogglePath"),
@@ -103,7 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     firebaseModules: null,
     historyItems: [],
     historyRestored: false,
-    latestSummaryText: "",
+    latestSummaryCards: [],
     selectedFiles: [],
     selectedHistoryId: null,
     summaryTypeMenuOpen: false,
@@ -124,9 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "statusText",
     "submitButton",
     "submitButtonLabel",
-    "summary",
-    "summaryMeta",
-    "summaryTitle",
+    "summaryResults",
     "summaryTypeSelect",
     "themeToggle",
     "themeTogglePath",
@@ -272,40 +266,81 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#39;");
   }
 
-  function renderSummary(summaryText) {
+  function buildSummaryContentMarkup(summaryText) {
     const safeSummary =
       typeof summaryText === "string" && summaryText.trim()
         ? summaryText.trim()
         : DEFAULT_SUMMARY_TEXT;
     const lines = safeSummary.split(/\n+/).filter(Boolean);
 
-    elements.summary.innerHTML = lines.length
-      ? lines
-          .map((line) => {
-            const trimmedLine = line.trim();
-            const escapedLine = escapeHtml(line);
+    if (!lines.length) {
+      return `<p class="summary-paragraph">${escapeHtml(safeSummary)}</p>`;
+    }
 
-            if (/^[-*]/.test(trimmedLine) || /^\d+\./.test(trimmedLine)) {
-              return `<p class="summary-bullet"><mark>${escapedLine}</mark></p>`;
-            }
+    return lines
+      .map((line) => {
+        const trimmedLine = line.trim();
+        const escapedLine = escapeHtml(line);
 
-            return `<p class="summary-paragraph">${escapedLine}</p>`;
-          })
-          .join("")
-      : `<p class="summary-paragraph">${escapeHtml(safeSummary)}</p>`;
+        if (/^[-*]/.test(trimmedLine) || /^\d+\./.test(trimmedLine)) {
+          return `<p class="summary-bullet"><mark>${escapedLine}</mark></p>`;
+        }
 
-    state.latestSummaryText = safeSummary;
+        return `<p class="summary-paragraph">${escapedLine}</p>`;
+      })
+      .join("");
   }
 
-  function setSummaryState({
-    title = "Summary",
-    meta = "No summary generated yet.",
-    content = DEFAULT_SUMMARY_TEXT,
-  }) {
-    elements.summaryTitle.textContent = title;
-    elements.summaryTitle.setAttribute("title", title);
-    elements.summaryMeta.textContent = meta;
-    renderSummary(content);
+  function renderSummaryCards(cards) {
+    const normalizedCards = Array.isArray(cards) ? cards : [];
+    state.latestSummaryCards = normalizedCards;
+
+    if (!normalizedCards.length) {
+      elements.summaryResults.innerHTML = `
+        <article class="summary-card summary-card--empty">
+          <div class="summary-meta">No summary generated yet.</div>
+          <div class="summary-content">${escapeHtml(DEFAULT_SUMMARY_TEXT)}</div>
+        </article>
+      `;
+      return;
+    }
+
+    elements.summaryResults.innerHTML = normalizedCards
+      .map((card, index) => {
+        const fileName = escapeHtml(card.fileName || `Document ${index + 1}`);
+        const summaryType = escapeHtml(card.summaryType || "Summary");
+        const status = card.status === "error" ? "error" : "success";
+        const bodyText =
+          status === "error"
+            ? escapeHtml(card.error || "This file could not be summarized.")
+            : buildSummaryContentMarkup(card.summary);
+
+        return `
+          <article class="summary-card summary-card--${status}">
+            <div class="summary-header">
+              <div>
+                <p class="summary-label">File</p>
+                <h3 title="${fileName}">${fileName}</h3>
+              </div>
+              <div class="summary-header-actions">
+                <button class="ghost-button" type="button" data-copy-summary="${index}" ${
+                  status === "error" ? "disabled" : ""
+                }>Copy</button>
+                <button class="ghost-button" type="button" data-download-summary="${index}" ${
+                  status === "error" ? "disabled" : ""
+                }>Download</button>
+              </div>
+            </div>
+            <div class="summary-meta">Summary Type: ${summaryType}</div>
+            <div class="summary-content">${bodyText}</div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  function setSummaryState(cards = []) {
+    renderSummaryCards(cards);
   }
 
   function setLoadingState(isLoading) {
@@ -615,11 +650,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.selectedHistoryId = item.id;
     renderHistory(state.historyItems);
-    setSummaryState({
-      title: item.fileName,
-      meta: `${item.summaryType} summary saved ${formatTimestamp(item.createdAt)}`,
-      content: item.summary,
-    });
+    setSummaryState([
+      {
+        fileName: item.fileName,
+        summaryType: item.summaryType,
+        summary: item.summary,
+        status: "success",
+      },
+    ]);
     logDebug("Latest summary restored", {
       id: item.id,
       fileName: item.fileName,
@@ -629,11 +667,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function loadHistoryItem(item) {
     state.selectedHistoryId = item.id;
     renderHistory(state.historyItems);
-    setSummaryState({
-      title: item.fileName,
-      meta: `${item.summaryType} summary saved ${formatTimestamp(item.createdAt)}`,
-      content: item.summary,
-    });
+    setSummaryState([
+      {
+        fileName: item.fileName,
+        summaryType: item.summaryType,
+        summary: item.summary,
+        status: "success",
+      },
+    ]);
     closeSidebar();
   }
 
@@ -932,11 +973,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resetSummaryPanel() {
-    setSummaryState({
-      title: "Summary",
-      meta: "No summary generated yet.",
-      content: DEFAULT_SUMMARY_TEXT,
-    });
+    setSummaryState([]);
   }
 
   function updateUserState() {
@@ -1350,30 +1387,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  bindEvent(elements.copyButton, "click", "Copy button clicked", async () => {
-    if (!state.latestSummaryText || state.latestSummaryText === DEFAULT_SUMMARY_TEXT) {
-      setMessage("Generate or load a summary before copying.", "error");
+  bindEvent(elements.summaryResults, "click", "Summary card action clicked", async (event) => {
+    const copyButton = event.target.closest("[data-copy-summary]");
+    const downloadButton = event.target.closest("[data-download-summary]");
+
+    if (copyButton) {
+      const index = Number(copyButton.dataset.copySummary);
+      const item = state.latestSummaryCards[index];
+
+      if (!item?.summary) {
+        setMessage("No summary is available to copy for this file.", "error");
+        return;
+      }
+
+      await navigator.clipboard.writeText(item.summary);
+      setMessage(`Copied summary for ${item.fileName}.`, "success");
       return;
     }
 
-    await navigator.clipboard.writeText(state.latestSummaryText);
-    setMessage("Summary copied to your clipboard.", "success");
-  });
+    if (downloadButton) {
+      const index = Number(downloadButton.dataset.downloadSummary);
+      const item = state.latestSummaryCards[index];
 
-  bindEvent(elements.downloadButton, "click", "Download button clicked", () => {
-    if (!state.latestSummaryText || state.latestSummaryText === DEFAULT_SUMMARY_TEXT) {
-      setMessage("Generate or load a summary before downloading.", "error");
-      return;
+      if (!item?.summary) {
+        setMessage("No summary is available to download for this file.", "error");
+        return;
+      }
+
+      const blob = new Blob([item.summary], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${item.fileName || "summary"}.txt`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage(`Downloaded summary for ${item.fileName}.`, "success");
     }
-
-    const blob = new Blob([state.latestSummaryText], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "summary.txt";
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setMessage("Summary downloaded successfully.", "success");
   });
 
   bindEvent(elements.form, "submit", "Summary form submitted", async (event) => {
@@ -1392,11 +1441,14 @@ document.addEventListener("DOMContentLoaded", () => {
       state.selectedHistoryId = null;
       elements.statusText.textContent = "Uploading documents";
       setMessage("Uploading and extracting text from your selected files...", "loading");
-      setSummaryState({
-        title: "Summary",
-        meta: "Preparing your files for AI processing.",
-        content: "Processing your documents. This may take a few moments.",
-      });
+      setSummaryState(
+        files.map((file) => ({
+          fileName: file.name,
+          summaryType: getSummaryTypeLabel(elements.summaryTypeSelect.value),
+          summary: "Processing your document. This may take a few moments.",
+          status: "success",
+        }))
+      );
 
       const authHeaders = await getOptionalAuthHeaders();
       const formData = new FormData();
@@ -1433,8 +1485,7 @@ document.addEventListener("DOMContentLoaded", () => {
           url: `${API_BASE_URL}/api/summarize`,
           hasAuthorization: Boolean(authHeaders.Authorization),
           payload: {
-            textLength: uploadResult.data.extractedText?.length || 0,
-            fileName: uploadResult.data.fileName,
+            fileCount: uploadResult.data.files?.length || 0,
             summaryType: elements.summaryTypeSelect.value,
           },
         })
@@ -1447,8 +1498,7 @@ document.addEventListener("DOMContentLoaded", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text: uploadResult.data.extractedText,
-          fileName: uploadResult.data.fileName,
+          files: uploadResult.data.files,
           summaryType: elements.summaryTypeSelect.value,
         }),
       });
@@ -1458,38 +1508,30 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(getApiErrorMessage(summaryResult, "The summary request failed."));
       }
 
-      const historyItem = summaryResult.data.historyItem;
-      const savedMeta = historyItem
-        ? `${elements.summaryTypeSelect.value} summary saved at ${formatTimestamp(historyItem.createdAt)}.`
-        : `${elements.summaryTypeSelect.value} summary generated successfully.`;
-
-      setSummaryState({
-        title: historyItem?.fileName || uploadResult.data.fileName,
-        meta: savedMeta,
-        content: summaryResult.data.summary,
-      });
+      const results = Array.isArray(summaryResult.data.results) ? summaryResult.data.results : [];
+      setSummaryState(results);
 
       elements.statusText.textContent = "Summary ready";
+      const successCount = results.filter((result) => result.status === "success").length;
+      const errorCount = results.filter((result) => result.status === "error").length;
       setMessage(
-        historyItem
-          ? `Summary generated and saved for ${uploadResult.data.fileName}.`
-          : `Summary generated for ${uploadResult.data.fileName}.`,
+        errorCount
+          ? `${successCount} summaries completed. ${errorCount} file${errorCount === 1 ? "" : "s"} could not be summarized.`
+          : `Summary generation completed for ${successCount} file${successCount === 1 ? "" : "s"}.`,
         "success"
       );
 
       await fetchHistory();
-
-      if (historyItem) {
-        state.selectedHistoryId = historyItem.id;
-        renderHistory(state.historyItems);
-      }
     } catch (error) {
       elements.statusText.textContent = "Something went wrong";
-      setSummaryState({
-        title: "Summary",
-        meta: "The request did not complete successfully.",
-        content: error.message || "The request failed before a summary could be generated.",
-      });
+      setSummaryState(
+        files.map((file) => ({
+          fileName: file.name,
+          summaryType: getSummaryTypeLabel(elements.summaryTypeSelect.value),
+          status: "error",
+          error: error.message || "The request failed before a summary could be generated.",
+        }))
+      );
       setMessage(error.message || "An unexpected error occurred.", "error");
     } finally {
       setLoadingState(false);
@@ -1502,10 +1544,7 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.historySidebar?.classList.add("is-closed");
   elements.authModal?.classList.add("is-closed");
   setAuthMode("login");
-  setSummaryState({
-    meta: "No summary generated yet.",
-    content: DEFAULT_SUMMARY_TEXT,
-  });
+  setSummaryState([]);
   setMessage(DEFAULT_RESULT_MESSAGE, null);
   renderSelectedFiles([]);
   renderHistory([]);

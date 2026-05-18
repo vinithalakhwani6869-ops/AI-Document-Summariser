@@ -1031,6 +1031,21 @@ input[type="file"] {
   overflow: hidden;
 }
 
+.summary-results {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+}
+
+.summary-card--error {
+  border-color: rgba(195, 70, 70, 0.28);
+}
+
+.summary-card--empty .summary-content {
+  min-height: 0;
+}
+
 .summary-header {
   justify-content: space-between;
   align-items: flex-start;
@@ -1454,6 +1469,10 @@ mark {
   .summary-card {
     padding: 18px;
     min-height: 240px;
+  }
+
+  .summary-results {
+    gap: 14px;
   }
 
   .summary-content {
