@@ -19,6 +19,7 @@ const API_BASE_URL = (() => {
 
   return "https://ai-document-summariser-j4a7.onrender.com";
 })();
+const DEFAULT_RESULT_MESSAGE = "Sign in to save and revisit your summaries.";
 const THEME_STORAGE_KEY = "theme";
 const DEFAULT_SUMMARY_TEXT = "Your summary will appear here after processing.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
@@ -979,7 +980,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderHistory([]);
       closeProfileDropdown();
       resetSummaryPanel();
-      setMessage("Upload your documents to generate a clean summary.", null);
+      setMessage(DEFAULT_RESULT_MESSAGE, null);
     }
   }
 
@@ -1505,6 +1506,7 @@ document.addEventListener("DOMContentLoaded", () => {
     meta: "No summary generated yet.",
     content: DEFAULT_SUMMARY_TEXT,
   });
+  setMessage(DEFAULT_RESULT_MESSAGE, null);
   renderSelectedFiles([]);
   renderHistory([]);
   updateUserState();
