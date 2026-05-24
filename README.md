@@ -61,7 +61,17 @@ Environment variables are not included for security reasons.
 
 ## Screenshots
 
-![Home Page](./screenshots/home.png)
+### Homepage
+![Homepage](./screenshots/homepage.png)
+
+### Upload Interface
+![Upload](./screenshots/upload2.png)
+
+### Generated Summary
+![login](./screenshots/login.png)
+
+### Mobile View
+![Mobile View](./screenshots/mobileview.png)
 
 ---
 
