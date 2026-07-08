@@ -32,16 +32,17 @@ function extractCohereSummary(responseBody) {
 
 function resolveMaxTokens(summaryType) {
   switch (summaryType) {
-    case "detailed":
+    case "references":
       return 2500;
-    case "bullets":
+    case "claims":
       return 1500;
+    case "summary":
     default:
-      return 220;
+      return 500;
   }
 }
 
-async function summarize({ prompt, requestId, summaryType = "short" }) {
+async function summarize({ prompt, requestId, summaryType = "summary" }) {
   const apiKey = process.env.COHERE_API_KEY;
 
   if (!apiKey || apiKey === "your_key_here") {

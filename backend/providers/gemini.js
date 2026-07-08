@@ -90,15 +90,7 @@ function extractGeminiSummary(responseBody) {
 }
 
 function resolveMaxOutputTokens(summaryType) {
-  switch (summaryType) {
-    case "detailed":
-      return 8192;
-    case "bullets":
-      return 4096;
-    default:
-      /* Keep aligned with prior short-summary behavior */
-      return 1024;
-  }
+  return 8192;
 }
 
 function buildGenerationConfig(summaryType) {
@@ -108,10 +100,9 @@ function buildGenerationConfig(summaryType) {
   };
 
   /*
-   * Only disable reasoning for modes that need longer visible output.
-   * Short summaries keep default Gemini 2.5 behavior + original 1024 cap.
+   * Disable reasoning for reference list extraction and claim lists to avoid truncation.
    */
-  if (summaryType === "detailed" || summaryType === "bullets") {
+  if (summaryType === "references" || summaryType === "claims") {
     config.thinkingConfig = {
       thinkingBudget: 0,
     };
@@ -120,7 +111,7 @@ function buildGenerationConfig(summaryType) {
   return config;
 }
 
-async function summarize({ prompt, requestId, summaryType = "short" }) {
+async function summarize({ prompt, requestId, summaryType = "summary" }) {
   const apiKey = normalizeGeminiApiKey();
 
   if (!apiKey) {

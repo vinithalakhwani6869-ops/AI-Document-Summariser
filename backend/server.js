@@ -82,11 +82,33 @@ const upload = multer({
     const extension = path.extname(file.originalname || "").toLowerCase();
     const allowedMimeTypes = supportedFileTypes[extension];
 
-    if (!allowedMimeTypes || !allowedMimeTypes.includes(file.mimetype)) {
-      cb(createHttpError(400, "Only PDF, TXT, and DOCX files are supported."));
+    if (!allowedMimeTypes) {
+      console.warn(
+        JSON.stringify({
+          event: "file_rejected",
+          originalname: file.originalname,
+          extension,
+          mimetype: file.mimetype,
+          reason: "unsupported_extension",
+        })
+      );
+      cb(null, false);
       return;
     }
 
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+
+    console.warn(
+      JSON.stringify({
+        event: "file_accepted_extension_only",
+        originalname: file.originalname,
+        extension,
+        mimetype: file.mimetype,
+      })
+    );
     cb(null, true);
   },
 });
@@ -237,29 +259,53 @@ async function extractTextFromFile(file) {
 
   const extension = path.extname(file.originalname || "").toLowerCase();
 
-  if (file.mimetype === "text/plain" || extension === ".txt") {
-    return file.buffer.toString("utf-8").trim();
-  }
+  try {
+    if (file.mimetype === "text/plain" || extension === ".txt") {
+      return file.buffer.toString("utf-8").trim();
+    }
 
-  if (file.mimetype === "application/pdf" || extension === ".pdf") {
-    const { text } = await pdfParse(file.buffer);
-    return text.trim();
-  }
+    if (file.mimetype === "application/pdf" || extension === ".pdf") {
+      const { text } = await pdfParse(file.buffer);
+      return text.trim();
+    }
 
-  if (
-    file.mimetype ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    extension === ".docx"
-  ) {
-    const { value } = await mammoth.extractRawText({ buffer: file.buffer });
-    return value.trim();
-  }
+    if (
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      extension === ".docx"
+    ) {
+      const { value } = await mammoth.extractRawText({ buffer: file.buffer });
+      return value.trim();
+    }
 
-  throw createHttpError(400, "Unsupported file type.");
+    throw createHttpError(400, "Unsupported file type.");
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "extract_text_failed",
+        fileName: file.originalname,
+        extension,
+        error: error.message,
+        stack: error.stack ? String(error.stack).slice(0, 1000) : null,
+      })
+    );
+    throw createHttpError(
+      400,
+      `Could not read text from "${file.originalname}". Please verify the file is not corrupt and contains selectable text.`
+    );
+  }
 }
 
 function normalizeText(text) {
-  return text.replace(/\s+/g, " ").trim();
+  if (typeof text !== "string") {
+    return "";
+  }
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
 }
 
 function buildFileLog(files = []) {
@@ -425,7 +471,7 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
       text,
       fileName = DEFAULT_FILE_PLACEHOLDER,
       files,
-      summaryType = "short",
+      summaryType = "summary",
     } = req.body;
 
     const normalizedSummaryType = normalizeSummaryType(summaryType);
@@ -556,10 +602,14 @@ app.use((error, req, res, next) => {
   logServerError(error, req);
 
   const status = error.status || 500;
-  const message = error.message || "Something went wrong while processing your request.";
+
+  const userMessage =
+    status >= 500
+      ? "Something went wrong on our end. Please try again."
+      : error.message || "Please verify your request and try again.";
 
   res.status(status).json({
-    error: message,
+    error: userMessage,
     requestId: req?.requestId || null,
     details: error.details || null,
   });

@@ -2,30 +2,30 @@ const geminiProvider = require("../providers/gemini");
 const cohereProvider = require("../providers/cohere");
 const huggingFaceProvider = require("../providers/huggingface");
 
-const MAX_SUMMARY_INPUT_LENGTH = 5000;
+const MAX_SUMMARY_INPUT_LENGTH = 80000;
 const DEFAULT_SUMMARY_ERROR =
   "Summarization service is temporarily unavailable. Please try again in a few seconds.";
 const SUMMARY_TYPE_CONFIG = {
-  short: {
-    label: "Short",
+  summary: {
+    label: "Summary",
     cohereInstruction:
-      "Create a short executive summary in one compact paragraph with 3 to 4 sentences.",
+      "Create a concise research paper summary. Preserve important context. Do not oversimplify.",
     huggingFacePrefix:
-      "Create a short executive summary in one compact paragraph with 3 to 4 sentences.\n\n",
+      "Create a concise research paper summary. Preserve important context. Do not oversimplify.\n\n",
   },
-  detailed: {
-    label: "Detailed",
+  claims: {
+    label: "Key Claims",
     cohereInstruction:
-      "Create a detailed summary with a short overview paragraph followed by several explanatory paragraphs covering the main ideas clearly.",
+      "Identify only the major claims made by the authors (including main findings, primary contributions, and important conclusions). Focus only on the paper's central contributions and arguments, avoiding background information or literature review. Format the output strictly as:\n\nClaim 1\nEvidence (if present)\n\nClaim 2\nEvidence\n\nClaim 3\nEvidence\n\nEnsure the response is clean and structured. If no clear research claims can be extracted, output exactly: 'No clear research claims could be extracted.'",
     huggingFacePrefix:
-      "Create a detailed summary with a short overview paragraph followed by several explanatory paragraphs covering the main ideas clearly.\n\n",
+      "Identify only the major claims made by the authors (including main findings, primary contributions, and important conclusions). Focus only on the paper's central contributions and arguments, avoiding background information or literature review. Format the output strictly as:\n\nClaim 1\nEvidence (if present)\n\nClaim 2\nEvidence\n\nClaim 3\nEvidence\n\nEnsure the response is clean and structured. If no clear research claims can be extracted, output exactly: 'No clear research claims could be extracted.'\n\n",
   },
-  bullets: {
-    label: "Bullet Points",
+  references: {
+    label: "References",
     cohereInstruction:
-      "Create a concise summary using bullet points only. Start with a brief one-line overview, then add clear bullet points for the key takeaways.",
+      "Extract only the paper's bibliography/references. Do NOT summarize or rewrite the citations. Return them exactly as they appear in the text whenever possible. If no references section exists, output exactly: 'No references section detected.'",
     huggingFacePrefix:
-      "Create a concise summary using bullet points only. Start with a brief one-line overview, then add clear bullet points for the key takeaways.\n\n",
+      "Extract only the paper's bibliography/references. Do NOT summarize or rewrite the citations. Return them exactly as they appear in the text whenever possible. If no references section exists, output exactly: 'No references section detected.'\n\n",
   },
 };
 const PROVIDERS = [geminiProvider, cohereProvider, huggingFaceProvider];
@@ -37,7 +37,15 @@ function createHttpError(status, message) {
 }
 
 function normalizeText(text) {
-  return text.replace(/\s+/g, " ").trim();
+  if (typeof text !== "string") {
+    return "";
+  }
+  return text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
 }
 
 function truncateTextForSummarization(text) {
@@ -49,11 +57,11 @@ function truncateTextForSummarization(text) {
 }
 
 function getSummaryTypeConfig(summaryType) {
-  return SUMMARY_TYPE_CONFIG[summaryType] || SUMMARY_TYPE_CONFIG.short;
+  return SUMMARY_TYPE_CONFIG[summaryType] || SUMMARY_TYPE_CONFIG.summary;
 }
 
 function normalizeSummaryType(summaryType) {
-  return SUMMARY_TYPE_CONFIG[summaryType] ? summaryType : "short";
+  return SUMMARY_TYPE_CONFIG[summaryType] ? summaryType : "summary";
 }
 
 function buildUserFacingSummaryError(failureEvents = []) {
@@ -120,10 +128,16 @@ function buildUserFacingSummaryError(failureEvents = []) {
 function buildSummaryPrompt(fileName, excerpt, summaryType) {
   const typeConfig = getSummaryTypeConfig(summaryType);
 
+  let systemPrompt = "You are an AI research assistant helping students and researchers understand academic papers.";
+  if (summaryType === "references") {
+    systemPrompt = "You are a precise citation extraction assistant. You only extract references and bibliography exactly as they appear in the text, without summarizing, paraphrasing, or altering the text.";
+  } else if (summaryType === "claims") {
+    systemPrompt = "You are a research analysis assistant. You identify major claims and evidence in academic papers and output them in a structured format.";
+  }
+
   return {
-    system:
-      "You summarize documents for a professional web app. Keep the output polished, readable, and useful.",
-    user: `File name: ${fileName}\nSummary type: ${typeConfig.label}\nInstructions: ${typeConfig.cohereInstruction}\n\nDocument text:\n${excerpt}`,
+    system: systemPrompt,
+    user: `File name: ${fileName}\nAnalysis type: ${typeConfig.label}\nInstructions: ${typeConfig.cohereInstruction}\n\nDocument text:\n${excerpt}`,
     huggingFaceInput: `${typeConfig.huggingFacePrefix}File name: ${fileName}\nDocument text:\n${excerpt}`,
   };
 }
@@ -144,6 +158,42 @@ function logProviderFailure({ requestId, provider, summaryType, excerptLength, e
   );
 }
 
+function extractReferencesRegex(text) {
+  if (typeof text !== "string") return null;
+  const lines = text.split("\n");
+  const headerRegex = /^\s*(?:\d+[\.\s]+|[IVXLCDM]+[\.\s]+)?(?:References|Bibliography|Works\s+Cited|Literature\s+Cited|References\s+and\s+Notes)\s*:?\s*$/i;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (headerRegex.test(line)) {
+      const referencesText = lines.slice(i + 1).join("\n").trim();
+      if (referencesText.length > 30) {
+        return referencesText;
+      }
+    }
+  }
+
+  const looseHeaderRegex = /\n\s*(?:\d+[\.\s]+|[IVXLCDM]+[\.\s]+)?(?:References|Bibliography|Works\s+Cited|Literature\s+Cited|References\s+and\s+Notes)\s*:?\s*\n/i;
+  const match = text.match(looseHeaderRegex);
+  if (match) {
+    const index = match.index;
+    const matchedText = match[0];
+    const referencesText = text.slice(index + matchedText.length).trim();
+    if (referencesText.length > 30) {
+      return referencesText;
+    }
+  }
+
+  return null;
+}
+
+function getExcerptForReferences(text) {
+  if (text.length <= 5000) {
+    return text;
+  }
+  return `...[Truncated]...\n${text.slice(-5000)}`;
+}
+
 async function summarizeDocument(text, fileName, summaryType, requestId) {
   const normalizedText = normalizeText(text);
 
@@ -151,7 +201,20 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
     throw createHttpError(400, "The uploaded document does not contain readable text.");
   }
 
-  const excerpt = truncateTextForSummarization(normalizedText);
+  // 1. Special behavior for References mode: regex extraction first
+  if (summaryType === "references") {
+    const extractedRefs = extractReferencesRegex(normalizedText);
+    if (extractedRefs) {
+      console.log(`[Citation Extraction] Successfully extracted references via regex for ${fileName}`);
+      return extractedRefs;
+    }
+    console.log(`[Citation Extraction] Regex failed. Falling back to AI for ${fileName}`);
+  }
+
+  const excerpt = summaryType === "references"
+    ? getExcerptForReferences(normalizedText)
+    : truncateTextForSummarization(normalizedText);
+
   const prompt = buildSummaryPrompt(fileName, excerpt, summaryType);
 
   const failureEvents = [];
@@ -171,13 +234,28 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
 
   for (const provider of PROVIDERS) {
     try {
-      return await provider.summarize({
+      const result = await provider.summarize({
         excerpt,
         fileName,
         prompt,
         requestId,
         summaryType,
       });
+
+      // Post-process response for user friendly messages
+      if (summaryType === "references") {
+        const cleanResult = result.trim();
+        if (!cleanResult || cleanResult.toLowerCase().includes("no references section")) {
+          return "No references section was detected.";
+        }
+      } else if (summaryType === "claims") {
+        const cleanResult = result.trim();
+        if (!cleanResult || cleanResult.toLowerCase().includes("no clear research claims")) {
+          return "No clear research claims could be extracted.";
+        }
+      }
+
+      return result;
     } catch (error) {
       lastError = error;
       failureEvents.push({

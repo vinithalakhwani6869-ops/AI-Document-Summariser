@@ -48,16 +48,17 @@ function isModelLoading(responseBody) {
 
 function resolveGenerationLengths(summaryType) {
   switch (summaryType) {
-    case "detailed":
+    case "references":
       return { max_length: 512, min_length: 120 };
-    case "bullets":
+    case "claims":
       return { max_length: 380, min_length: 80 };
+    case "summary":
     default:
       return { max_length: 220, min_length: 60 };
   }
 }
 
-async function summarize({ prompt, requestId, summaryType = "short" }) {
+async function summarize({ prompt, requestId, summaryType = "summary" }) {
   const apiKey = process.env.HUGGINGFACE_API_KEY;
 
   if (!apiKey || apiKey === "your_key_here") {
