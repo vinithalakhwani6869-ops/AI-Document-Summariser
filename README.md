@@ -1,6 +1,6 @@
-# AI Document Summarizer
+# Research Assistant for Students
 
-An AI-powered web application that converts PDF, TXT, and DOCX files into clean, readable summaries within seconds.
+An AI-powered web application that helps students read research papers faster by extracting key claims, references, and concise summaries within seconds.
 
 ## Live Demo
 
@@ -19,20 +19,20 @@ Environment variables are not included for security reasons.
 
 ## Features
 
-- Upload PDF, TXT, and DOCX documents
-- Generate AI-powered summaries
-- Multiple summary styles:
-  - Short
-  - Detailed
-  - Bullet Points
+- Upload PDF, TXT, and DOCX research documents
+- Generate AI-powered research analysis
+- Multiple analysis modes:
+  - Summary
+  - Key Claims
+  - References
 - Multi-file upload support
-- Save summary history with authentication
+- Save analysis history with authentication
 - Responsive UI for:
   - Mobile
   - Tablet
   - Desktop
 - Dark / Light mode
-- Copy and download summaries
+- Copy and download results
 
 ---
 

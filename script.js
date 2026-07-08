@@ -1,4 +1,4 @@
-const API_BASE_URL = (() => {
+﻿const API_BASE_URL = (() => {
   const configured =
     (typeof globalThis !== "undefined" &&
       typeof globalThis.__APP_CONFIG__?.apiBaseUrl === "string" &&
@@ -9,21 +9,25 @@ const API_BASE_URL = (() => {
     return configured.replace(/\/+$/, "");
   }
 
-  if (
-    typeof window !== "undefined" &&
-    window.location &&
-    /^https?:$/i.test(window.location.protocol)
-  ) {
-    return window.location.origin.replace(/\/+$/, "");
+  if (typeof window !== "undefined" && window.location) {
+    const { hostname } = window.location;
+
+    if (hostname === "127.0.0.1" || hostname === "localhost") {
+      return "http://localhost:3000";
+    }
+
+    if (/^https?:$/i.test(window.location.protocol)) {
+      return window.location.origin.replace(/\/+$/, "");
+    }
   }
 
-  return "https://ai-document-summariser-j4a7.onrender.com";
+  return "http://localhost:3000";
 })();
-const DEFAULT_RESULT_MESSAGE = "Sign in to save and revisit your summaries.";
+const DEFAULT_RESULT_MESSAGE = "";
 const THEME_STORAGE_KEY = "theme";
-const DEFAULT_SUMMARY_TEXT = "Your summary will appear here after processing.";
-const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
-const GUEST_HISTORY_MESSAGE = "Login to view your saved summaries";
+const DEFAULT_SUMMARY_TEXT = "Your analysis will appear here after processing.";
+const DEFAULT_HISTORY_EMPTY = "No saved analyses yet. Generate one while logged in to see it here.";
+const GUEST_HISTORY_MESSAGE = "Login to view your saved analyses";
 const PROFILE_DROPDOWN_VIEWPORT_GAP = 12;
 const MAX_FILES_ALLOWED = 5;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -107,9 +111,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const summaryTypeOptions = [
-    { value: "short", label: "Short" },
-    { value: "detailed", label: "Detailed" },
-    { value: "bullets", label: "Bullet Points" },
+    { value: "summary", label: "Summary" },
+    { value: "claims", label: "Key Claims" },
+    { value: "references", label: "References" },
   ];
 
   const missingCriticalElements = [
@@ -159,7 +163,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getSummaryTypeLabel(value) {
-    return summaryTypeOptions.find((option) => option.value === value)?.label || "Short";
+    const found = summaryTypeOptions.find((option) => option.value === value);
+    if (found) {
+      return found.label;
+    }
+    // Backward compatibility for older summaries in user history
+    if (value === "short") return "Short Summary";
+    if (value === "detailed") return "Detailed Summary";
+    if (value === "bullets") return "Bullet Points";
+    return value || "Summary";
   }
 
   function getSummaryTypeOptionElements() {
@@ -255,6 +267,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (variant) {
       elements.messageBox.classList.add(`is-${variant}`);
     }
+
+    elements.messageBox.hidden = !message;
   }
 
   function escapeHtml(value) {
@@ -266,7 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#39;");
   }
 
-  function buildSummaryContentMarkup(summaryText) {
+  function buildSummaryContentMarkup(summaryText, summaryType) {
     const safeSummary =
       typeof summaryText === "string" && summaryText.trim()
         ? summaryText.trim()
@@ -277,13 +291,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return `<p class="summary-paragraph">${escapeHtml(safeSummary)}</p>`;
     }
 
+    const isReferences = summaryType === "references";
+
     return lines
       .map((line) => {
         const trimmedLine = line.trim();
         const escapedLine = escapeHtml(line);
 
         if (/^[-*]/.test(trimmedLine) || /^\d+\./.test(trimmedLine)) {
-          return `<p class="summary-bullet"><mark>${escapedLine}</mark></p>`;
+          const scholarLink = isReferences
+            ? `<a href="https://scholar.google.com/scholar?q=${encodeURIComponent(trimmedLine)}" target="_blank" rel="noopener" class="scholar-link" title="Search on Google Scholar">\uD83D\uDD0D</a>`
+            : "";
+          return `<p class="summary-bullet"><mark>${escapedLine}</mark>${scholarLink}</p>`;
         }
 
         return `<p class="summary-paragraph">${escapedLine}</p>`;
@@ -297,13 +316,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!normalizedCards.length) {
       elements.summaryResults.innerHTML = `
-        <article class="summary-card summary-card--empty">
-          <div class="summary-meta">No summary generated yet.</div>
-          <div class="summary-content">${escapeHtml(DEFAULT_SUMMARY_TEXT)}</div>
-        </article>
+        <div class="empty-state">
+          <div class="empty-state-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </div>
+          <h4 class="empty-state-title">No analysis yet</h4>
+          <p class="empty-state-text">Upload a research paper to begin AI analysis.</p>
+        </div>
       `;
       return;
     }
+
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     elements.summaryResults.innerHTML = normalizedCards
       .map((card, index) => {
@@ -312,27 +337,33 @@ document.addEventListener("DOMContentLoaded", () => {
         const status = card.status === "error" ? "error" : "success";
         const bodyText =
           status === "error"
-            ? escapeHtml(card.error || "This file could not be summarized.")
-            : buildSummaryContentMarkup(card.summary);
+            ? `<p class="summary-paragraph">${escapeHtml(card.error || "We couldn\u2019t analyze this paper. Please verify that the document contains selectable text or try another file.")}</p>`
+            : buildSummaryContentMarkup(card.summary, card.summaryType);
 
         return `
           <article class="summary-card summary-card--${status}">
             <div class="summary-header">
               <div>
-                <p class="summary-label">File</p>
+                <p class="summary-label">${summaryType}</p>
                 <h3 title="${fileName}">${fileName}</h3>
               </div>
               <div class="summary-header-actions">
-                <button class="ghost-button" type="button" data-copy-summary="${index}" ${
+                <button type="button" data-copy-summary="${index}" ${
                   status === "error" ? "disabled" : ""
-                }>Copy</button>
-                <button class="ghost-button" type="button" data-download-summary="${index}" ${
+                } title="Copy to clipboard">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Copy
+                </button>
+                <button type="button" data-download-summary="${index}" ${
                   status === "error" ? "disabled" : ""
-                }>Download</button>
+                } title="Download as text file">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download
+                </button>
               </div>
             </div>
-            <div class="summary-meta">Summary Type: ${summaryType}</div>
             <div class="summary-content">${bodyText}</div>
+            <div class="summary-timestamp">${timestamp}</div>
           </article>
         `;
       })
@@ -346,7 +377,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function setLoadingState(isLoading) {
     elements.submitButton.disabled = isLoading;
     elements.buttonSpinner.hidden = !isLoading;
-    elements.submitButtonLabel.textContent = isLoading ? "Processing..." : "Generate Summary";
+    elements.submitButtonLabel.textContent = isLoading ? "Analyzing..." : "Analyze";
   }
 
   function setAuthLoadingState(isLoading) {
@@ -460,8 +491,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.authSubtitle) {
       elements.authSubtitle.textContent =
         mode === "login"
-          ? "Login to save summaries and access history later."
-          : "Create an account to save summaries and unlock history.";
+          ? "Login to save analyses and access history later."
+          : "Create an account to save analyses and unlock history.";
     }
 
     if (elements.authSubmitLabel) {
@@ -740,12 +771,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getApiErrorMessage(result, fallbackMessage) {
-    return (
-      result?.data?.error ||
-      result?.data?.details?.userMessage ||
-      result?.data?.details?.providerReason ||
-      fallbackMessage
-    );
+    const rawError = result?.data?.error;
+    const userMessage = result?.data?.details?.userMessage;
+    const providerReason = result?.data?.details?.providerReason;
+
+    if (providerReason && rawError !== userMessage) {
+      console.warn("Provider error (not shown to user):", providerReason);
+    }
+
+    return userMessage || rawError || fallbackMessage;
   }
 
   async function getOptionalAuthHeaders() {
@@ -855,7 +889,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applySelectedFiles(nextFiles) {
     renderSelectedFiles(nextFiles);
-    elements.statusText.textContent = nextFiles.length ? "Ready to summarize" : "Waiting for upload";
+    elements.statusText.textContent = nextFiles.length ? "Ready to analyze" : "Waiting for upload";
   }
 
   function mergeSelectedFiles(incomingFiles) {
@@ -898,40 +932,6 @@ document.addEventListener("DOMContentLoaded", () => {
       duplicateCount,
       errors,
     };
-  }
-
-  function handleIncomingFiles(incomingFiles, source = "picker") {
-    const normalizedFiles = Array.from(incomingFiles || []);
-
-    if (!normalizedFiles.length) {
-      if (source === "picker" && !state.selectedFiles.length) {
-        applySelectedFiles([]);
-      }
-      return;
-    }
-
-    const { files, duplicateCount, errors } = mergeSelectedFiles(normalizedFiles);
-    applySelectedFiles(files);
-
-    if (errors.length) {
-      setMessage(errors[0], "error");
-      return;
-    }
-
-    if (duplicateCount) {
-      setMessage("Duplicate files were skipped.", "success");
-      return;
-    }
-
-    setMessage("Files added successfully. Generate a summary when you’re ready.", "success");
-    return;
-
-    setMessage(
-      state.currentUser
-        ? "Files added successfully. Generate a summary when you’re ready."
-        : "Files added successfully. Sign in only if you want saved history.",
-      "success"
-    );
   }
 
   function removeSelectedFile(fileKey) {
@@ -1002,7 +1002,7 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.profileEmail.textContent = email || "Signed in user";
       }
 
-      setMessage("Signed in. New summaries will be saved automatically.", "success");
+      setMessage("Signed in. New analyses will be saved automatically.", "success");
     } else {
       if (elements.profileName) {
         elements.profileName.textContent = "Signed in user";
@@ -1439,16 +1439,22 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       setLoadingState(true);
       state.selectedHistoryId = null;
-      elements.statusText.textContent = "Uploading documents";
-      setMessage("Uploading and extracting text from your selected files...", "loading");
-      setSummaryState(
-        files.map((file) => ({
-          fileName: file.name,
-          summaryType: getSummaryTypeLabel(elements.summaryTypeSelect.value),
-          summary: "Processing your document. This may take a few moments.",
-          status: "success",
-        }))
-      );
+      elements.statusText.textContent = "Uploading and extracting text";
+      setMessage("Uploading and extracting text from your selected files\u2026", "loading");
+      elements.summaryResults.innerHTML = files
+        .map(
+          (file) => `
+        <div class="summary-skeleton">
+          <div class="skeleton-line" style="width: 40%; height: 16px; margin-bottom: 16px;"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line" style="width: 92%;"></div>
+          <div class="skeleton-line" style="width: 78%;"></div>
+          <div class="skeleton-line" style="width: 85%;"></div>
+          <div class="skeleton-line" style="width: 60%;"></div>
+        </div>
+      `
+        )
+        .join("");
 
       const authHeaders = await getOptionalAuthHeaders();
       const formData = new FormData();
@@ -1476,8 +1482,8 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(getApiErrorMessage(uploadResult, "We could not process those files."));
       }
 
-      elements.statusText.textContent = `Extracted ${uploadResult.data.characterCount} characters`;
-      setMessage("Files processed successfully. Generating your summary now...", "loading");
+      elements.statusText.textContent = `${uploadResult.data.characterCount.toLocaleString()} characters extracted`;
+      setMessage("Generating AI analysis\u2026", "loading");
 
       console.log(
         "Summarize request started",
@@ -1511,28 +1517,30 @@ document.addEventListener("DOMContentLoaded", () => {
       const results = Array.isArray(summaryResult.data.results) ? summaryResult.data.results : [];
       setSummaryState(results);
 
-      elements.statusText.textContent = "Summary ready";
+      elements.statusText.textContent = "Analysis complete";
       const successCount = results.filter((result) => result.status === "success").length;
       const errorCount = results.filter((result) => result.status === "error").length;
       setMessage(
         errorCount
-          ? `${successCount} summaries completed. ${errorCount} file${errorCount === 1 ? "" : "s"} could not be summarized.`
-          : `Summary generation completed for ${successCount} file${successCount === 1 ? "" : "s"}.`,
+          ? `${successCount} analysis${successCount === 1 ? "" : "s"} complete. ${errorCount} file${errorCount === 1 ? "" : "s"} could not be analyzed.`
+          : `Analysis complete for ${successCount} file${successCount === 1 ? "" : "s"}.`,
         "success"
       );
 
       await fetchHistory();
     } catch (error) {
+      console.error("Analysis request failed:", error);
       elements.statusText.textContent = "Something went wrong";
+      const friendlyMessage = "We couldn\u2019t complete the analysis. Please try again.";
       setSummaryState(
         files.map((file) => ({
           fileName: file.name,
           summaryType: getSummaryTypeLabel(elements.summaryTypeSelect.value),
           status: "error",
-          error: error.message || "The request failed before a summary could be generated.",
+          error: friendlyMessage,
         }))
       );
-      setMessage(error.message || "An unexpected error occurred.", "error");
+      setMessage(friendlyMessage, "error");
     } finally {
       setLoadingState(false);
     }
@@ -1595,3 +1603,5 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn("Firebase startup check failed.", error);
   });
 });
+
+

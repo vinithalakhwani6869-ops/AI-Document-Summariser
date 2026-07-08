@@ -3,41 +3,42 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Summarizer</title>
+    <title>Research Assistant for Students</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     >
     <link rel="stylesheet" href="style.css">
   </head>
   <body>
-    <div class="nav-shell">
+    <!-- Navigation -->
+    <nav class="nav-shell">
       <header class="topbar">
         <div class="topbar-left">
-          <button id="sidebarToggle" class="icon-button" type="button" aria-label="Open history sidebar">
-            <span class="menu-icon" aria-hidden="true">&#9776;</span>
-          </button>
-
           <div class="brand-mark">
             <span class="brand-dot"></span>
             <div>
-              <h1>Document Summarizer</h1>
+              <h1>Research Assistant</h1>
             </div>
           </div>
         </div>
 
         <div class="topbar-actions">
+          <button id="sidebarToggle" class="icon-button" type="button" aria-label="Open history sidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+
           <button id="themeToggle" class="icon-button" type="button" aria-label="Toggle dark mode" aria-pressed="false">
-            <svg id="themeToggleIcon" class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <svg id="themeToggleIcon" class="theme-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path id="themeTogglePath"></path>
             </svg>
           </button>
 
           <div id="guestActions" class="guest-actions">
-            <button id="loginButton" class="ghost-button" type="button">Login</button>
-            <button id="signupButton" class="secondary-button" type="button">Sign up</button>
+            <button id="loginButton" class="ghost-button" type="button">Sign in</button>
+            <button id="signupButton" class="secondary-button" type="button">Get started</button>
           </div>
 
           <div id="profileMenu" class="profile-menu" hidden>
@@ -52,186 +53,207 @@
               </div>
               <div class="profile-divider"></div>
               <button id="historyShortcut" class="profile-action" type="button">My History</button>
-              <button id="logoutButton" class="profile-action" type="button">Logout</button>
+              <button id="logoutButton" class="profile-action" type="button">Sign out</button>
             </div>
           </div>
         </div>
       </header>
-    </div>
+    </nav>
 
+    <!-- Sidebar Overlay -->
     <aside id="sidebarOverlay" class="sidebar-overlay" hidden></aside>
 
+    <!-- History Sidebar -->
     <aside id="historySidebar" class="history-sidebar is-closed" aria-hidden="true" hidden>
       <div class="sidebar-header">
         <div>
-          <p class="sidebar-label">Workspace</p>
-          <h2>Saved Summaries</h2>
+          <p class="sidebar-label">History</p>
+          <h2>Saved Analyses</h2>
         </div>
-        <button id="closeSidebarButton" class="icon-button" type="button" aria-label="Close history sidebar">&times;</button>
+        <button id="closeSidebarButton" class="icon-button" type="button" aria-label="Close history sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
       </div>
-      <p class="sidebar-copy">
-        Open previous summaries instantly and continue where you left off.
-      </p>
+      <p class="sidebar-copy">Your saved analyses appear here. Sign in to save results.</p>
       <div id="historyList" class="history-list" aria-live="polite">
-        <p class="history-empty">Login to view your saved summaries.</p>
+        <p class="history-empty">Login to view your saved analyses.</p>
       </div>
     </aside>
 
+    <!-- Auth Modal -->
     <section id="authModal" class="auth-modal" hidden>
       <div id="authBackdrop" class="auth-backdrop"></div>
-      <div class="auth-dialog panel">
-        <button id="authCloseButton" class="icon-button auth-close-button" type="button" aria-label="Close authentication dialog">&times;</button>
+      <div class="auth-dialog">
+        <button id="authCloseButton" class="icon-button auth-close-button" type="button" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
 
-        <div class="panel-heading">
-          <p class="section-tag">Account</p>
-          <h3 id="authTitle">Login</h3>
-          <p id="authSubtitle">Sign in to save your summaries and access history.</p>
+        <div class="auth-header">
+          <div class="auth-brand">
+            <span class="brand-dot"></span>
+            <span class="eyebrow">Research Assistant</span>
+          </div>
+          <h3 id="authTitle">Sign in</h3>
+          <p id="authSubtitle" class="auth-subtitle">Sign in to save your analyses and access history.</p>
         </div>
 
         <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
-          <button id="loginTab" class="auth-tab is-active" type="button">Login</button>
-          <button id="signupTab" class="auth-tab" type="button">Sign up</button>
+          <button id="loginTab" class="auth-tab is-active" type="button">Sign in</button>
+          <button id="signupTab" class="auth-tab" type="button">Create account</button>
         </div>
 
         <form id="authForm" class="auth-form">
           <label class="field">
             <span>Email</span>
-            <input id="authEmail" type="email" autocomplete="email" required>
+            <input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com">
           </label>
 
           <label class="field">
             <span>Password</span>
-            <input id="authPassword" type="password" autocomplete="current-password" required>
+            <input id="authPassword" type="password" autocomplete="current-password" required placeholder="Enter your password">
           </label>
 
           <div class="auth-actions">
-            <button id="authSubmitButton" class="secondary-button" type="submit">
-              <span id="authSubmitLabel">Login</span>
+            <button id="authSubmitButton" class="primary-button" type="submit">
+              <span id="authSubmitLabel">Sign in</span>
             </button>
             <button id="authCancelButton" class="ghost-button" type="button">Cancel</button>
           </div>
         </form>
 
         <div id="authWarning" class="auth-warning" hidden></div>
-        <div id="authMessage" class="auth-message" aria-live="polite">
-          Login is optional. Sign in only if you want saved history.
+        <div id="authMessage" class="auth-message">
+          Sign in to save analyses. It's optional.
         </div>
       </div>
     </section>
 
+    <!-- Page Content -->
     <div class="page-scroll">
       <main class="content-shell">
+        <!-- Hero -->
         <section class="hero">
           <div class="hero-copy">
-            <p class="eyebrow">AI document summaries</p>
-            <h2>Turn dense documents into clear summaries in seconds.</h2>
+            <span class="eyebrow">AI Research Assistant</span>
+            <h2>Understand research papers faster with AI</h2>
             <p class="hero-text">
-              Summarize documents in seconds using AI-powered analysis. Upload PDFs, DOCX, or TXT files and get clean, readable summaries instantly.
+              Upload research papers and get concise summaries, key claims, and references extracted instantly.
             </p>
             <div class="hero-pills">
+              <span>PDF, DOCX, TXT</span>
               <span>Multi-file upload</span>
-              <span>Drag and drop</span>
-              <span>Saved history</span>
+              <span>Drag &amp; drop</span>
               <span>Copy &amp; export</span>
             </div>
           </div>
         </section>
 
-        <section class="workspace-grid">
-          <section class="panel upload-panel">
-            <div class="panel-heading">
-              <p class="section-tag">Upload</p>
-              <h3>Choose documents</h3>
-              <p>
-                Upload one or more PDF, DOCX, or TXT files for AI-powered summarization.
-              </p>
+        <!-- Main Work Area -->
+        <section class="workspace">
+          <!-- Upload Card -->
+          <section class="card upload-card">
+            <div class="card-header">
+              <div class="card-icon upload-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div>
+                <h3>Upload paper</h3>
+                <p>Drop a research paper or click to browse</p>
+              </div>
             </div>
 
             <form id="uploadform" class="upload-form">
               <label for="fileInput" class="upload-dropzone" id="dropzone">
-                <span class="dropzone-icon" aria-hidden="true">+</span>
-                <span class="dropzone-title">Drop files here or browse your device</span>
-                <span class="dropzone-subtitle">Up to 5 files, 25 MB each. PDF, TXT, and DOCX supported.</span>
+                <div class="dropzone-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div>
+                  <span class="dropzone-title">Choose files or drag them here</span>
+                  <span class="dropzone-subtitle">PDF, DOCX, or TXT &middot; Up to 25 MB each</span>
+                </div>
               </label>
               <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
 
-              <div class="controls-grid">
-                <label class="field">
-                  <span>Summary type</span>
-                  <div class="custom-select" id="summaryTypeSelect">
-                    <input type="hidden" id="summaryType" value="short">
-                    <button
-                      id="summaryTypeButton"
-                      class="custom-select-trigger"
-                      type="button"
-                      aria-haspopup="listbox"
-                      aria-expanded="false"
-                      aria-labelledby="summaryTypeLabel"
-                    >
-                      <span class="custom-select-copy">
-                        <span class="custom-select-caption">Summary style</span>
-                        <span id="summaryTypeLabel" class="custom-select-value">Short</span>
-                      </span>
-                      <span class="custom-select-chevron" aria-hidden="true"></span>
+              <!-- Analysis Mode -->
+              <div class="mode-row">
+                <div class="custom-select" id="summaryTypeSelect">
+                  <input type="hidden" id="summaryType" value="summary">
+                  <button
+                    id="summaryTypeButton"
+                    class="custom-select-trigger"
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    aria-labelledby="summaryTypeLabel"
+                  >
+                    <span class="custom-select-copy">
+                      <span class="custom-select-caption">Analysis mode</span>
+                      <span id="summaryTypeLabel" class="custom-select-value">Summary</span>
+                    </span>
+                    <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div id="summaryTypeMenu" class="custom-select-menu" role="listbox" hidden>
+                    <button class="custom-select-option is-selected" type="button" role="option" data-summary-type="summary" aria-selected="true">
+                      <span class="custom-select-option-title">Summary</span>
+                      <span class="custom-select-option-copy">Concise overview of the paper</span>
                     </button>
-                    <div id="summaryTypeMenu" class="custom-select-menu" hidden>
-                      <button class="custom-select-option is-selected" type="button" role="option" data-summary-type="short" aria-selected="true">
-                        <span class="custom-select-option-title">Short</span>
-                        <span class="custom-select-option-copy">Quick and concise overview</span>
-                      </button>
-                      <button class="custom-select-option" type="button" role="option" data-summary-type="detailed" aria-selected="false">
-                        <span class="custom-select-option-title">Detailed</span>
-                        <span class="custom-select-option-copy">More context with fuller explanation</span>
-                      </button>
-                      <button class="custom-select-option" type="button" role="option" data-summary-type="bullets" aria-selected="false">
-                        <span class="custom-select-option-title">Bullet Points</span>
-                        <span class="custom-select-option-copy">Scannable key points and takeaways</span>
-                      </button>
-                    </div>
+                    <button class="custom-select-option" type="button" role="option" data-summary-type="claims" aria-selected="false">
+                      <span class="custom-select-option-title">Key Claims</span>
+                      <span class="custom-select-option-copy">Major findings and contributions</span>
+                    </button>
+                    <button class="custom-select-option" type="button" role="option" data-summary-type="references" aria-selected="false">
+                      <span class="custom-select-option-title">References</span>
+                      <span class="custom-select-option-copy">Extracted bibliography</span>
+                    </button>
                   </div>
-                </label>
+                </div>
+
+                <button class="primary-button" id="submitButton" type="submit">
+                  <span id="submitButtonLabel">Analyze</span>
+                  <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
+                </button>
               </div>
 
-              <div class="file-meta">
-                <div>
-                  <p class="meta-label">Selected files</p>
-                  <p id="fileName" class="file-name">No files selected</p>
+              <!-- Selected Files -->
+              <div class="file-info">
+                <div class="file-meta-item">
+                  <span class="file-meta-label">Files</span>
+                  <span id="fileName" class="file-meta-value">None selected</span>
                 </div>
-                <div>
-                  <p class="meta-label">Status</p>
-                  <p id="statusText" class="status-text">Waiting for upload</p>
+                <div class="file-meta-item">
+                  <span class="file-meta-label">Status</span>
+                  <span id="statusText" class="file-meta-value status-value">Ready</span>
                 </div>
               </div>
 
               <div id="selectedFiles" class="selected-files">
-                <p class="selected-files-empty">Your selected files will appear here.</p>
+                <p class="selected-files-empty">No files selected yet</p>
               </div>
-
-              <button class="primary-button" id="submitButton" type="submit">
-                <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
-                <span id="submitButtonLabel">Generate Summary</span>
-              </button>
             </form>
           </section>
 
-          <section class="panel result-panel">
-            <div class="panel-heading">
-              <p class="section-tag">Result</p>
-              <h3>Summary output</h3>
-              <p>
-                Your AI-generated summary will appear here.
-              </p>
+          <!-- Results Card -->
+          <section class="card results-card">
+            <div class="card-header">
+              <div class="card-icon results-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </div>
+              <div>
+                <h3>Analysis</h3>
+                <p>AI-generated insights will appear here</p>
+              </div>
             </div>
 
-            <div id="messageBox" class="message-box" aria-live="polite"></div>
+            <div id="messageBox" class="message-box" aria-live="polite" hidden></div>
 
             <div id="summaryResults" class="summary-results" aria-live="polite">
-              <article class="summary-card summary-card--empty">
-                <div class="summary-meta">No summary generated yet.</div>
-                <div class="summary-content">
-                  Your summary will appear here after processing.
+              <div class="empty-state" id="emptyState">
+                <div class="empty-state-icon">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 </div>
-              </article>
+                <h4 class="empty-state-title">No analysis yet</h4>
+                <p class="empty-state-text">Upload a research paper to begin AI analysis.</p>
+              </div>
             </div>
           </section>
         </section>
