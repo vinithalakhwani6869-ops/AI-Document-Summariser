@@ -44,37 +44,74 @@
 }
 
 html.dark-mode, body.dark-mode {
-  color-scheme: light;
-  --bg: #F9F9F8;
-  --bg-card: #F3F5F2;
-  --bg-elevated: #ffffff;
-  --bg-subtle: #EAF2EC;
-  --text: #1A1F1A;
-  --text-secondary: #5A6659;
-  --text-tertiary: #5A6659;
-  --heading: #1A1F1A;
-  --border: #DDE3DB;
-  --border-hover: #A8C4B0;
-  --card-border: #E3E8E1;
-  --dropzone-border: #A8C4B0;
-  --dropzone-bg: #F0F5F0;
-  --primary: #3D7A5F;
-  --primary-hover: #2E6048;
-  --primary-soft: #EAF2EC;
-  --accent: #3D7A5F;
-  --accent-soft: #EAF2EC;
-  --success: #3D7A5F;
-  --success-bg: #EAF2EC;
-  --error: #f87171;
-  --error-bg: rgba(248, 113, 113, 0.1);
-  --warning: #fbbf24;
-  --warning-bg: rgba(251, 191, 36, 0.1);
+  color-scheme: dark;
+  --bg: #080808;
+  --bg-card: #111111;
+  --bg-elevated: #111111;
+  --bg-subtle: #0A1A0E;
+  --text: #FFFFFF;
+  --text-secondary: #A0A0A0;
+  --text-tertiary: #A0A0A0;
+  --heading: #FFFFFF;
+  --border: #1E1E1E;
+  --border-hover: #2A2A2A;
+  --card-border: #1E1E1E;
+  --dropzone-border: #2A2A2A;
+  --dropzone-bg: #0E0E0E;
+  --primary: #3D9960;
+  --primary-hover: #2E7A4A;
+  --primary-soft: #0A1A0E;
+  --accent: #3D9960;
+  --accent-soft: #0A1A0E;
+  --success: #3D9960;
+  --success-bg: #0A1A0E;
+  --error: #A0A0A0;
+  --error-bg: #111111;
+  --warning: #A0A0A0;
+  --warning-bg: #111111;
   --shadow-sm: none;
   --shadow: none;
   --shadow-md: none;
   --shadow-lg: none;
   --shadow-xl: none;
-  --accent-strong: #3D7A5F;
+  --accent-strong: #3D9960;
+}
+
+html.dark-mode .topbar,
+body.dark-mode .topbar {
+  background: #080808;
+  border-color: #1E1E1E;
+}
+
+html.dark-mode .icon-button,
+body.dark-mode .icon-button,
+html.dark-mode .ghost-button,
+body.dark-mode .ghost-button,
+html.dark-mode .summary-header-actions button,
+body.dark-mode .summary-header-actions button,
+html.dark-mode .auth-tab,
+body.dark-mode .auth-tab,
+html.dark-mode .field input,
+body.dark-mode .field input {
+  background: #111111;
+  border-color: #1E1E1E;
+}
+
+html.dark-mode .custom-select-trigger,
+body.dark-mode .custom-select-trigger,
+html.dark-mode .custom-select-menu,
+body.dark-mode .custom-select-menu,
+html.dark-mode .profile-dropdown,
+body.dark-mode .profile-dropdown {
+  background: #111111;
+  border-color: #1E1E1E;
+}
+
+html.dark-mode .message-box.is-success,
+body.dark-mode .message-box.is-success {
+  background: #0A1A0E;
+  border-color: #1A3320;
+  color: #3D9960;
 }
 
 [hidden] { display: none !important; }
