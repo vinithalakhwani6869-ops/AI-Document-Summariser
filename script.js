@@ -280,12 +280,99 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#39;");
   }
 
+  function normalizeReferences(text) {
+    if (typeof text !== "string" || !text.trim()) {
+      return text;
+    }
+
+    const lines = text.split(/\n/).map(line => line.trim()).filter(line => line.length > 0);
+    
+    if (lines.length === 0) {
+      return text;
+    }
+
+    const normalizedReferences = [];
+    let currentReference = "";
+
+    // Patterns that indicate a new reference
+    const newReferencePatterns = [
+      /^\d+\./,           // Numbered list: "1.", "2.", etc.
+      /^[-*]\s/,          // Bullet points: "- ", "* "
+      /^\[[^\]]+\]\s/,    // Bracketed numbers: "[1] ", "[2] ", etc.
+      /^[A-Z][a-z]+,\s/,  // Author name pattern: "Smith, ", "Johnson, "
+      /^[A-Z]\.\s/,       // Initial pattern: "A. ", "B. "
+    ];
+
+    // Patterns that indicate a continuation line (wrapped from PDF)
+    const continuationPatterns = [
+      /^\d{4}/,           // Year at start (continuation from previous line)
+      /^\d+\s*\(/,        // Page numbers: "282-288" or "282 ("
+      /^\(/,              // Opening parenthesis (continuation)
+      /^\./,              // Continuation starting with period
+      /^[a-z]/,           // Lowercase letter start (continuation)
+      /^,\s/,             // Comma at start (continuation)
+      /^and\s/i,          // "and" at start (continuation)
+      /^[ivx]+\./,        // Roman numerals: "i.", "ii.", etc.
+    ];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const isContinuation = continuationPatterns.some(pattern => pattern.test(line));
+      const isNewReference = newReferencePatterns.some(pattern => pattern.test(line));
+
+      // Check for blank line separator (double newline in original)
+      const hasBlankLineSeparator = i > 0 && text.includes("\n\n") && !isContinuation;
+
+      if (isNewReference || (hasBlankLineSeparator && currentReference.length > 0)) {
+        // Save current reference if it exists and is not empty
+        if (currentReference.trim().length > 0) {
+          normalizedReferences.push(currentReference.trim());
+        }
+        currentReference = line;
+      } else if (isContinuation && currentReference.length > 0) {
+        // Append to current reference
+        currentReference += " " + line;
+      } else if (currentReference.length === 0) {
+        // First line
+        currentReference = line;
+      } else {
+        // Check if this looks like a new reference by context
+        // If the line starts with a capital letter and previous line ends with punctuation
+        const endsWithPunctuation = /[.!?]$/.test(currentReference.trim());
+        const startsWithCapital = /^[A-Z]/.test(line) && !/^[A-Z]\./.test(line);
+        
+        if (endsWithPunctuation && startsWithCapital && !isContinuation) {
+          normalizedReferences.push(currentReference.trim());
+          currentReference = line;
+        } else {
+          currentReference += " " + line;
+        }
+      }
+    }
+
+    // Add the last reference if it's not empty
+    if (currentReference.trim().length > 0) {
+      normalizedReferences.push(currentReference.trim());
+    }
+
+    // Filter out empty references and join with double newlines
+    return normalizedReferences
+      .filter(ref => ref.trim().length > 0)
+      .join("\n\n");
+  }
+
   function buildSummaryContentMarkup(summaryText, summaryType) {
     const safeSummary =
       typeof summaryText === "string" && summaryText.trim()
         ? summaryText.trim()
         : DEFAULT_SUMMARY_TEXT;
-    const lines = safeSummary.split(/\n+/).filter(Boolean);
+
+    // Normalize references if this is a references summary
+    const processedSummary = summaryType === "references" 
+      ? normalizeReferences(safeSummary) 
+      : safeSummary;
+
+    const lines = processedSummary.split(/\n+/).filter(Boolean);
 
     if (!lines.length) {
       return `<p class="summary-paragraph">${escapeHtml(safeSummary)}</p>`;
@@ -299,10 +386,28 @@ document.addEventListener("DOMContentLoaded", () => {
         const escapedLine = escapeHtml(line);
 
         if (/^[-*]/.test(trimmedLine) || /^\d+\./.test(trimmedLine)) {
-          const scholarLink = isReferences
-            ? `<a href="https://scholar.google.com/scholar?q=${encodeURIComponent(trimmedLine)}" target="_blank" rel="noopener" class="scholar-link" title="Search on Google Scholar">\uD83D\uDD0D</a>`
-            : "";
-          return `<p class="summary-bullet"><mark>${escapedLine}</mark>${scholarLink}</p>`;
+          if (isReferences) {
+            return `
+              <div class="reference-row">
+                <p class="summary-bullet"><mark>${escapedLine}</mark></p>
+                <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(trimmedLine)}" target="_blank" rel="noopener" class="ghost-button scholar-button" title="Search on Google Scholar">
+                  Search →
+                </a>
+              </div>
+            `;
+          }
+          return `<p class="summary-bullet"><mark>${escapedLine}</mark></p>`;
+        }
+
+        if (isReferences && trimmedLine.length > 0) {
+          return `
+            <div class="reference-row">
+              <p class="summary-paragraph">${escapedLine}</p>
+              <a href="https://scholar.google.com/scholar?q=${encodeURIComponent(trimmedLine)}" target="_blank" rel="noopener" class="ghost-button scholar-button" title="Search on Google Scholar">
+                Search →
+              </a>
+            </div>
+          `;
         }
 
         return `<p class="summary-paragraph">${escapedLine}</p>`;
@@ -372,6 +477,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setSummaryState(cards = []) {
     renderSummaryCards(cards);
+    const resultsCard = document.getElementById("resultsCard");
+    if (resultsCard) {
+      const hasResults = Array.isArray(cards) && cards.length > 0;
+      resultsCard.classList.toggle("is-visible", hasResults);
+    }
   }
 
   function setLoadingState(isLoading) {

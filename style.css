@@ -139,6 +139,12 @@ body {
   overflow-x: hidden;
 }
 
+@media (max-width: 768px) {
+  body {
+    padding-inline: 16px;
+  }
+}
+
 button, input, select, textarea { font: inherit; }
 
 .page-scroll {
@@ -615,6 +621,28 @@ button, input, select, textarea { font: inherit; }
 .workspace {
   display: grid;
   gap: 24px;
+  max-width: 720px;
+  margin-inline: auto;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .workspace {
+    max-width: 100%;
+  }
+
+  .upload-card,
+  .results-card {
+    width: 100%;
+  }
+}
+
+.results-card {
+  display: none;
+}
+
+.results-card.is-visible {
+  display: block;
 }
 
 /* --- Cards --- */
@@ -745,6 +773,16 @@ input[type="file"] { display: none; }
   grid-template-columns: 1fr;
   gap: 12px;
   align-items: start;
+}
+
+@media (max-width: 768px) {
+  .mode-row {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-select {
+    width: 100%;
+  }
 }
 
 /* --- Custom Select --- */
@@ -890,6 +928,14 @@ input[type="file"] { display: none; }
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  .primary-button,
+  .ghost-button,
+  .secondary-button {
+    width: 100%;
+  }
+}
+
 .primary-button:hover:not(:disabled) {
   background: var(--primary-hover);
   box-shadow: none;
@@ -925,9 +971,10 @@ input[type="file"] { display: none; }
   gap: 12px;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .file-info {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 
@@ -956,6 +1003,14 @@ input[type="file"] { display: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .file-meta-value {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+  }
 }
 
 .status-value { color: var(--text-secondary); }
@@ -1003,6 +1058,14 @@ input[type="file"] { display: none; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .selected-file-name {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+  }
 }
 
 .selected-file-meta {
@@ -1136,6 +1199,14 @@ input[type="file"] { display: none; }
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  .summary-header h3 {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+  }
+}
+
 .summary-header-actions {
   display: flex;
   align-items: center;
@@ -1194,8 +1265,23 @@ input[type="file"] { display: none; }
   word-wrap: break-word;
 }
 
+@media (max-width: 768px) {
+  .summary-content {
+    min-height: auto;
+    max-height: none;
+  }
+}
+
 .summary-paragraph {
   margin: 0;
+}
+
+@media (max-width: 768px) {
+  .summary-paragraph {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
 }
 
 .summary-bullet {
@@ -1204,6 +1290,21 @@ input[type="file"] { display: none; }
   border-radius: var(--radius);
   background: var(--bg-card);
   border: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .summary-bullet {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+
+  .summary-bullet mark {
+    display: block;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
 }
 
 .scholar-link {
@@ -1220,6 +1321,40 @@ input[type="file"] { display: none; }
 
 .scholar-link:hover {
   opacity: 0.7;
+}
+
+.reference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.reference-row .summary-bullet,
+.reference-row .summary-paragraph {
+  flex: 1;
+  margin: 0;
+}
+
+.scholar-button {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .reference-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .scholar-button {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 mark {
@@ -1528,10 +1663,11 @@ mark {
 
   .summary-header-actions {
     width: 100%;
+    flex-direction: column;
   }
 
   .summary-header-actions button {
-    flex: 1;
+    width: 100%;
     text-align: center;
   }
 }
@@ -1564,12 +1700,7 @@ mark {
   }
 }
 
-@media (min-width: 769px) {
-  .workspace {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
-}
+
 
 /* --- Accessibility --- */
 :focus-visible {
