@@ -291,62 +291,47 @@ document.addEventListener("DOMContentLoaded", () => {
       return text;
     }
 
+    // First try splitting by double newline
+    const doubleNewlineSplit = text.split(/\n\n/).map(part => part.trim()).filter(part => part.length > 0);
+    
+    if (doubleNewlineSplit.length > 1) {
+      // Double newline splitting produced multiple results, use it
+      return doubleNewlineSplit
+        .filter(ref => ref.trim().length > 0)
+        .join("\n\n");
+    }
+
+    // Fall back to pattern-based reference boundary detection
     const normalizedReferences = [];
     let currentReference = "";
 
-    // Patterns that indicate a new reference
+    // Patterns that indicate a new reference boundary
     const newReferencePatterns = [
-      /^\d+\./,           // Numbered list: "1.", "2.", etc.
-      /^[-*]\s/,          // Bullet points: "- ", "* "
-      /^\[[^\]]+\]\s/,    // Bracketed numbers: "[1] ", "[2] ", etc.
-      /^[A-Z][a-z]+,\s/,  // Author name pattern: "Smith, ", "Johnson, "
-      /^[A-Z]\.\s/,       // Initial pattern: "A. ", "B. "
-    ];
-
-    // Patterns that indicate a continuation line (wrapped from PDF)
-    const continuationPatterns = [
-      /^\d{4}/,           // Year at start (continuation from previous line)
-      /^\d+\s*\(/,        // Page numbers: "282-288" or "282 ("
-      /^\(/,              // Opening parenthesis (continuation)
-      /^\./,              // Continuation starting with period
-      /^[a-z]/,           // Lowercase letter start (continuation)
-      /^,\s/,             // Comma at start (continuation)
-      /^and\s/i,          // "and" at start (continuation)
-      /^[ivx]+\./,        // Roman numerals: "i.", "ii.", etc.
+      /^\d+[\.\]]/,           // Numbered list: "1.", "2.", or "1]", "2]"
+      /^[A-Z][a-z]+,/,        // Author name pattern: "Smith,", "Johnson,"
+      /^\[\d+\]/,             // Bracketed numbers: "[1]", "[2]", etc.
     ];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const isContinuation = continuationPatterns.some(pattern => pattern.test(line));
+      
+      // Skip empty lines and lines under 10 characters
+      if (line.length < 10) {
+        continue;
+      }
+
       const isNewReference = newReferencePatterns.some(pattern => pattern.test(line));
 
-      // Check for blank line separator (double newline in original)
-      const hasBlankLineSeparator = i > 0 && text.includes("\n\n") && !isContinuation;
-
-      if (isNewReference || (hasBlankLineSeparator && currentReference.length > 0)) {
+      if (isNewReference && currentReference.length > 0) {
         // Save current reference if it exists and is not empty
-        if (currentReference.trim().length > 0) {
-          normalizedReferences.push(currentReference.trim());
-        }
+        normalizedReferences.push(currentReference.trim());
         currentReference = line;
-      } else if (isContinuation && currentReference.length > 0) {
-        // Append to current reference
-        currentReference += " " + line;
       } else if (currentReference.length === 0) {
         // First line
         currentReference = line;
       } else {
-        // Check if this looks like a new reference by context
-        // If the line starts with a capital letter and previous line ends with punctuation
-        const endsWithPunctuation = /[.!?]$/.test(currentReference.trim());
-        const startsWithCapital = /^[A-Z]/.test(line) && !/^[A-Z]\./.test(line);
-        
-        if (endsWithPunctuation && startsWithCapital && !isContinuation) {
-          normalizedReferences.push(currentReference.trim());
-          currentReference = line;
-        } else {
-          currentReference += " " + line;
-        }
+        // Append to current reference
+        currentReference += " " + line;
       }
     }
 
@@ -372,7 +357,11 @@ document.addEventListener("DOMContentLoaded", () => {
       ? normalizeReferences(safeSummary) 
       : safeSummary;
 
-    const lines = processedSummary.split(/\n+/).filter(Boolean);
+    // For references, split by double newline to respect grouping
+    // For other modes, split by single newline
+    const lines = summaryType === "references" 
+      ? processedSummary.split(/\n\n/).filter(Boolean)
+      : processedSummary.split(/\n+/).filter(Boolean);
 
     if (!lines.length) {
       return `<p class="summary-paragraph">${escapeHtml(safeSummary)}</p>`;
