@@ -74,6 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
     profileEmail: document.getElementById("profileEmail"),
     profileName: document.getElementById("profileName"),
     profileMenu: document.getElementById("profileMenu"),
+    resultPanel: document.getElementById("resultPanel"),
     selectedFiles: document.getElementById("selectedFiles"),
     sidebarOverlay: document.getElementById("sidebarOverlay"),
     sidebarToggle: document.getElementById("sidebarToggle"),
@@ -1459,6 +1460,9 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       setLoadingState(true);
       showLoadingState();
+      if (elements.resultPanel) {
+        elements.resultPanel.hidden = false;
+      }
       state.selectedHistoryId = null;
       elements.statusText.textContent = "Uploading documents";
       setMessage("Uploading and extracting text from your selected files...", "loading");
