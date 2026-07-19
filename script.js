@@ -65,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
     historyList: document.getElementById("historyList"),
     historySidebar: document.getElementById("historySidebar"),
     historyShortcut: document.getElementById("historyShortcut"),
+    loadingState: document.getElementById("loadingState"),
     loginButton: document.getElementById("loginButton"),
     loginTab: document.getElementById("loginTab"),
     logoutButton: document.getElementById("logoutButton"),
@@ -341,6 +342,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setSummaryState(cards = []) {
     renderSummaryCards(cards);
+  }
+
+  function showLoadingState() {
+    if (elements.loadingState) {
+      elements.loadingState.hidden = false;
+    }
+    if (elements.summaryResults) {
+      elements.summaryResults.hidden = true;
+    }
+  }
+
+  function hideLoadingState() {
+    if (elements.loadingState) {
+      elements.loadingState.hidden = true;
+    }
+    if (elements.summaryResults) {
+      elements.summaryResults.hidden = false;
+    }
   }
 
   function setLoadingState(isLoading) {
@@ -973,6 +992,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resetSummaryPanel() {
+    hideLoadingState();
     setSummaryState([]);
   }
 
@@ -1438,17 +1458,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       setLoadingState(true);
+      showLoadingState();
       state.selectedHistoryId = null;
       elements.statusText.textContent = "Uploading documents";
       setMessage("Uploading and extracting text from your selected files...", "loading");
-      setSummaryState(
-        files.map((file) => ({
-          fileName: file.name,
-          summaryType: getSummaryTypeLabel(elements.summaryTypeSelect.value),
-          summary: "Processing your document. This may take a few moments.",
-          status: "success",
-        }))
-      );
 
       const authHeaders = await getOptionalAuthHeaders();
       const formData = new FormData();
@@ -1509,6 +1522,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const results = Array.isArray(summaryResult.data.results) ? summaryResult.data.results : [];
+      hideLoadingState();
       setSummaryState(results);
 
       elements.statusText.textContent = "Summary ready";
@@ -1523,6 +1537,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       await fetchHistory();
     } catch (error) {
+      hideLoadingState();
       elements.statusText.textContent = "Something went wrong";
       setSummaryState(
         files.map((file) => ({
@@ -1544,6 +1559,7 @@ document.addEventListener("DOMContentLoaded", () => {
   elements.historySidebar?.classList.add("is-closed");
   elements.authModal?.classList.add("is-closed");
   setAuthMode("login");
+  hideLoadingState();
   setSummaryState([]);
   setMessage(DEFAULT_RESULT_MESSAGE, null);
   renderSelectedFiles([]);

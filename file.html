@@ -121,23 +121,24 @@
 
     <div class="page-scroll">
       <main class="content-shell">
-        <section class="hero">
-          <div class="hero-copy">
-            <p class="eyebrow">AI document summaries</p>
-            <h2>Turn dense documents into clear summaries in seconds.</h2>
-            <p class="hero-text">
-              Summarize documents in seconds using AI-powered analysis. Upload PDFs, DOCX, or TXT files and get clean, readable summaries instantly.
-            </p>
-            <div class="hero-pills">
-              <span>Multi-file upload</span>
-              <span>Drag and drop</span>
-              <span>Saved history</span>
-              <span>Copy &amp; export</span>
+        <div class="landing-container">
+          <section class="hero">
+            <div class="hero-copy">
+              <p class="eyebrow">AI document summaries</p>
+              <h2>Turn dense documents into clear summaries in seconds.</h2>
+              <p class="hero-text">
+                Summarize documents in seconds using AI-powered analysis. Upload PDFs, DOCX, or TXT files and get clean, readable summaries instantly.
+              </p>
+              <div class="hero-pills">
+                <span>Multi-file upload</span>
+                <span>Drag and drop</span>
+                <span>Saved history</span>
+                <span>Copy &amp; export</span>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="workspace-grid">
+          <section class="workspace-grid">
           <section class="panel upload-panel">
             <div class="panel-heading">
               <p class="section-tag">Upload</p>
@@ -233,8 +234,20 @@
                 </div>
               </article>
             </div>
+
+            <div id="loadingState" class="loading-state" hidden>
+              <div class="loading-spinner"></div>
+              <p class="loading-text">Generating summary...</p>
+              <div class="loading-skeleton">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line"></div>
+              </div>
+            </div>
           </section>
         </section>
+        </div>
       </main>
     </div>
     <script type="module" src="script.js"></script>
