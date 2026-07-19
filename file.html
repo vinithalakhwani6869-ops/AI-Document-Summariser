@@ -16,19 +16,17 @@
     <div class="nav-shell">
       <header class="topbar">
         <div class="topbar-left">
-          <button id="sidebarToggle" class="icon-button" type="button" aria-label="Open history sidebar">
-            <span class="menu-icon" aria-hidden="true">&#9776;</span>
-          </button>
-
           <div class="brand-mark">
             <span class="brand-dot"></span>
-            <div>
-              <h1>Document Summarizer</h1>
-            </div>
+            <h1>Document Summarizer</h1>
           </div>
         </div>
 
         <div class="topbar-actions">
+          <button id="sidebarToggle" class="icon-button" type="button" aria-label="Open history sidebar">
+            <span class="menu-icon" aria-hidden="true">&#9776;</span>
+          </button>
+
           <button id="themeToggle" class="icon-button" type="button" aria-label="Toggle dark mode" aria-pressed="false">
             <svg id="themeToggleIcon" class="theme-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path id="themeTogglePath"></path>
@@ -36,8 +34,8 @@
           </button>
 
           <div id="guestActions" class="guest-actions">
-            <button id="loginButton" class="ghost-button" type="button">Login</button>
-            <button id="signupButton" class="secondary-button" type="button">Sign up</button>
+            <button id="loginButton" class="ghost-button" type="button">Sign in</button>
+            <button id="signupButton" class="secondary-button" type="button">Get started</button>
           </div>
 
           <div id="profileMenu" class="profile-menu" hidden>
@@ -124,129 +122,141 @@
         <div class="landing-container">
           <section class="hero">
             <div class="hero-copy">
-              <p class="eyebrow">AI document summaries</p>
+              <p class="eyebrow">AI Document Summaries</p>
               <h2>Turn dense documents into clear summaries in seconds.</h2>
               <p class="hero-text">
-                Summarize documents in seconds using AI-powered analysis. Upload PDFs, DOCX, or TXT files and get clean, readable summaries instantly.
+                Summarize documents instantly using AI-powered analysis. Upload your files and get clean, readable summaries.
               </p>
               <div class="hero-pills">
+                <span>PDF, DOCX, TXT</span>
                 <span>Multi-file upload</span>
-                <span>Drag and drop</span>
-                <span>Saved history</span>
+                <span>Drag &amp; drop</span>
                 <span>Copy &amp; export</span>
               </div>
             </div>
           </section>
 
           <section class="workspace-grid">
-          <section class="panel upload-panel">
-            <div class="panel-heading">
-              <p class="section-tag">Upload</p>
-              <h3>Choose documents</h3>
-              <p>
-                Upload one or more PDF, DOCX, or TXT files for AI-powered summarization.
-              </p>
-            </div>
+            <section class="panel upload-panel">
+              <div class="panel-header-row">
+                <span class="panel-header-icon" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                </span>
+                <div class="panel-header-text">
+                  <h3>Upload documents</h3>
+                  <p>Upload one or more files for AI-powered summarization.</p>
+                </div>
+              </div>
 
-            <form id="uploadform" class="upload-form">
-              <label for="fileInput" class="upload-dropzone" id="dropzone">
-                <span class="dropzone-icon" aria-hidden="true">+</span>
-                <span class="dropzone-title">Drop files here or browse your device</span>
-                <span class="dropzone-subtitle">Up to 5 files, 25 MB each. PDF, TXT, and DOCX supported.</span>
-              </label>
-              <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
-
-              <div class="controls-grid">
-                <label class="field">
-                  <span>Summary type</span>
-                  <div class="custom-select" id="summaryTypeSelect">
-                    <input type="hidden" id="summaryType" value="short">
-                    <button
-                      id="summaryTypeButton"
-                      class="custom-select-trigger"
-                      type="button"
-                      aria-haspopup="listbox"
-                      aria-expanded="false"
-                      aria-labelledby="summaryTypeLabel"
-                    >
-                      <span class="custom-select-copy">
-                        <span class="custom-select-caption">Summary style</span>
-                        <span id="summaryTypeLabel" class="custom-select-value">Short</span>
-                      </span>
-                      <span class="custom-select-chevron" aria-hidden="true"></span>
-                    </button>
-                    <div id="summaryTypeMenu" class="custom-select-menu" hidden>
-                      <button class="custom-select-option is-selected" type="button" role="option" data-summary-type="short" aria-selected="true">
-                        <span class="custom-select-option-title">Short</span>
-                        <span class="custom-select-option-copy">Quick and concise overview</span>
-                      </button>
-                      <button class="custom-select-option" type="button" role="option" data-summary-type="detailed" aria-selected="false">
-                        <span class="custom-select-option-title">Detailed</span>
-                        <span class="custom-select-option-copy">More context with fuller explanation</span>
-                      </button>
-                      <button class="custom-select-option" type="button" role="option" data-summary-type="bullets" aria-selected="false">
-                        <span class="custom-select-option-title">Bullet Points</span>
-                        <span class="custom-select-option-copy">Scannable key points and takeaways</span>
-                      </button>
-                    </div>
-                  </div>
+              <form id="uploadform" class="upload-form">
+                <label for="fileInput" class="upload-dropzone" id="dropzone">
+                  <span class="dropzone-icon" aria-hidden="true">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                  </span>
+                  <span class="dropzone-title">Choose files or drag them here</span>
+                  <span class="dropzone-subtitle">Up to 5 files, 25 MB each. PDF, TXT, and DOCX supported.</span>
                 </label>
-              </div>
+                <input type="file" id="fileInput" name="document" accept=".pdf,.docx,.txt" multiple>
 
-              <div class="file-meta">
-                <div>
-                  <p class="meta-label">Selected files</p>
-                  <p id="fileName" class="file-name">No files selected</p>
+                <div class="controls-grid">
+                  <label class="field">
+                    <span>Summary type</span>
+                    <div class="custom-select" id="summaryTypeSelect">
+                      <input type="hidden" id="summaryType" value="short">
+                      <button
+                        id="summaryTypeButton"
+                        class="custom-select-trigger"
+                        type="button"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-labelledby="summaryTypeLabel"
+                      >
+                        <span class="custom-select-copy">
+                          <span class="custom-select-caption">Summary style</span>
+                          <span id="summaryTypeLabel" class="custom-select-value">Short</span>
+                        </span>
+                        <span class="custom-select-chevron" aria-hidden="true"></span>
+                      </button>
+                      <div id="summaryTypeMenu" class="custom-select-menu" hidden>
+                        <button class="custom-select-option is-selected" type="button" role="option" data-summary-type="short" aria-selected="true">
+                          <span class="custom-select-option-title">Short</span>
+                          <span class="custom-select-option-copy">Quick and concise overview</span>
+                        </button>
+                        <button class="custom-select-option" type="button" role="option" data-summary-type="detailed" aria-selected="false">
+                          <span class="custom-select-option-title">Detailed</span>
+                          <span class="custom-select-option-copy">More context with fuller explanation</span>
+                        </button>
+                        <button class="custom-select-option" type="button" role="option" data-summary-type="bullets" aria-selected="false">
+                          <span class="custom-select-option-title">Bullet Points</span>
+                          <span class="custom-select-option-copy">Scannable key points and takeaways</span>
+                        </button>
+                      </div>
+                    </div>
+                  </label>
                 </div>
-                <div>
-                  <p class="meta-label">Status</p>
-                  <p id="statusText" class="status-text">Waiting for upload</p>
+
+                <button class="primary-button" id="submitButton" type="submit">
+                  <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
+                  <span id="submitButtonLabel">Generate Summary</span>
+                </button>
+
+                <div class="file-meta">
+                  <div>
+                    <p class="meta-label">Selected files</p>
+                    <p id="fileName" class="file-name">No files selected</p>
+                  </div>
+                  <div>
+                    <p class="meta-label">Status</p>
+                    <p id="statusText" class="status-text">Waiting for upload</p>
+                  </div>
+                </div>
+
+                <div id="selectedFiles" class="selected-files">
+                  <p class="selected-files-empty">No files selected yet. Add documents to begin.</p>
+                </div>
+              </form>
+            </section>
+
+            <section class="panel result-panel">
+              <div class="panel-heading">
+                <p class="section-tag">Result</p>
+                <h3>Summary output</h3>
+                <p>
+                  Your AI-generated summary will appear here.
+                </p>
+              </div>
+
+              <div id="messageBox" class="message-box" aria-live="polite"></div>
+
+              <div id="summaryResults" class="summary-results" aria-live="polite">
+                <article class="summary-card summary-card--empty">
+                  <div class="summary-meta">No summary generated yet.</div>
+                  <div class="summary-content">
+                    Your summary will appear here after processing.
+                  </div>
+                </article>
+              </div>
+
+              <div id="loadingState" class="loading-state" hidden>
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Generating summary...</p>
+                <div class="loading-skeleton">
+                  <div class="skeleton-line"></div>
+                  <div class="skeleton-line"></div>
+                  <div class="skeleton-line"></div>
+                  <div class="skeleton-line"></div>
                 </div>
               </div>
-
-              <div id="selectedFiles" class="selected-files">
-                <p class="selected-files-empty">Your selected files will appear here.</p>
-              </div>
-
-              <button class="primary-button" id="submitButton" type="submit">
-                <span id="buttonSpinner" class="button-spinner" aria-hidden="true" hidden></span>
-                <span id="submitButtonLabel">Generate Summary</span>
-              </button>
-            </form>
+            </section>
           </section>
-
-          <section class="panel result-panel">
-            <div class="panel-heading">
-              <p class="section-tag">Result</p>
-              <h3>Summary output</h3>
-              <p>
-                Your AI-generated summary will appear here.
-              </p>
-            </div>
-
-            <div id="messageBox" class="message-box" aria-live="polite"></div>
-
-            <div id="summaryResults" class="summary-results" aria-live="polite">
-              <article class="summary-card summary-card--empty">
-                <div class="summary-meta">No summary generated yet.</div>
-                <div class="summary-content">
-                  Your summary will appear here after processing.
-                </div>
-              </article>
-            </div>
-
-            <div id="loadingState" class="loading-state" hidden>
-              <div class="loading-spinner"></div>
-              <p class="loading-text">Generating summary...</p>
-              <div class="loading-skeleton">
-                <div class="skeleton-line"></div>
-                <div class="skeleton-line"></div>
-                <div class="skeleton-line"></div>
-                <div class="skeleton-line"></div>
-              </div>
-            </div>
-          </section>
-        </section>
         </div>
       </main>
     </div>

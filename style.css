@@ -150,14 +150,9 @@ select,
   overflow-y: visible;
   min-width: 0;
   padding-bottom: 0;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-}
-
-@media (min-width: 1080px) {
-  .nav-shell {
-    border-bottom: none;
-  }
+  background: transparent;
+  border-bottom: none;
+  box-shadow: none;
 }
 
 .content-shell {
@@ -167,7 +162,7 @@ select,
   padding-block: 0 40px;
   padding-inline: 0;
   display: grid;
-  gap: 26px;
+  gap: 0;
   min-width: 0;
 }
 
@@ -288,8 +283,8 @@ select,
 .meta-label,
 .summary-label,
 .sidebar-label {
-  margin: 0 0 8px;
-  font-size: 0.75rem;
+  margin: 0 0 6px;
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -516,10 +511,10 @@ select,
   background: transparent;
   border: none;
   box-shadow: none;
-  padding: 60px 24px;
+  padding: 72px 24px 64px;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
   max-width: 100%;
   text-align: center;
@@ -556,7 +551,7 @@ select,
 }
 
 .hero-text {
-  margin: 14px 0 20px;
+  margin: 8px 0 24px;
   max-width: min(52ch, 100%);
   line-height: 1.7;
 }
@@ -564,17 +559,17 @@ select,
 .hero-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
 }
 
 .hero-pills span {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
   border: none;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -584,7 +579,7 @@ select,
 .workspace-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0;
+  gap: 24px;
   align-items: start;
   min-width: 0;
   width: 100%;
@@ -592,16 +587,19 @@ select,
 }
 
 .hero {
-  padding-bottom: 64px;
+  padding-bottom: 40px;
 }
 
 .upload-panel {
-  padding: 80px 24px;
-  background: var(--panel-alt);
+  padding: 32px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
 }
 
 .result-panel {
-  padding: 80px 24px;
+  padding: 32px;
   background: transparent;
 }
 
@@ -625,6 +623,43 @@ select,
   }
 }
 
+.panel-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  width: 100%;
+}
+
+.panel-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.panel-header-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.panel-header-text h3 {
+  margin: 0;
+  color: var(--heading);
+}
+
+.panel-header-text p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .workspace-grid > * ,
 .panel > * ,
 .summary-header > * ,
@@ -634,11 +669,11 @@ select,
 
 .panel-heading {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 .panel-heading p {
@@ -648,21 +683,21 @@ select,
 
 .upload-form {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
 }
 
 .upload-dropzone {
   display: grid;
   place-items: center;
-  gap: 8px;
+  gap: 10px;
   min-height: 180px;
   min-width: 0;
   max-width: 100%;
-  padding: 32px 24px;
-  border-radius: 12px;
+  padding: 36px 24px;
+  border-radius: 14px;
   border: 2px dashed var(--border);
-  background: var(--panel-strong);
+  background: var(--panel-alt);
   text-align: center;
   cursor: pointer;
   overflow: hidden;
@@ -687,11 +722,12 @@ select,
 }
 
 .dropzone-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   background: var(--accent-soft);
   border: none;
   color: var(--accent);
@@ -701,8 +737,8 @@ select,
 
 .dropzone-title {
   color: var(--heading);
-  font-size: 1.14rem;
-  font-weight: 800;
+  font-size: 1.08rem;
+  font-weight: 700;
 }
 
 .dropzone-subtitle {
@@ -716,7 +752,7 @@ input[type="file"] {
 .controls-grid,
 .auth-form {
   display: grid;
-  gap: 14px;
+  gap: 0;
 }
 
 .field {
@@ -725,8 +761,11 @@ input[type="file"] {
 }
 
 .field span {
-  color: var(--heading);
-  font-weight: 700;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .field input {
@@ -889,8 +928,8 @@ input[type="file"] {
   max-width: 100%;
   padding: 16px 18px;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--panel-strong);
+  border: none;
+  background: var(--panel-alt);
   overflow: hidden;
 }
 
@@ -926,7 +965,7 @@ input[type="file"] {
   padding: 16px;
   border-radius: 12px;
   background: var(--panel-alt);
-  border: 1px solid var(--border);
+  border: none;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -996,11 +1035,11 @@ input[type="file"] {
   max-width: 100%;
   min-width: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 14px 18px;
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #ffffff;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   box-shadow: none;
   transition: transform 180ms ease, opacity 180ms ease;
@@ -1476,7 +1515,7 @@ mark {
   }
 
   .hero {
-    padding-bottom: 48px;
+    padding-bottom: 24px;
   }
 
   .hero-copy {
@@ -1484,11 +1523,12 @@ mark {
   }
 
   .upload-panel {
-    padding: 48px 16px;
+    padding: 24px 20px;
+    border-radius: 16px;
   }
 
   .result-panel {
-    padding: 48px 16px;
+    padding: 24px 20px;
   }
 
   .summary-header,
@@ -1609,6 +1649,20 @@ mark {
     word-break: break-word;
   }
 
+  .panel-header-row {
+    gap: 12px;
+  }
+
+  .panel-header-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .panel-header-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
   .loading-state {
     padding: 18px;
     min-height: 240px;
@@ -1672,16 +1726,17 @@ mark {
   }
 
   .hero-pills span {
-    padding: 6px 10px;
-    font-size: 0.8rem;
+    padding: 5px 10px;
+    font-size: 0.76rem;
   }
 
   .upload-panel {
-    padding: 40px 16px;
+    padding: 20px 16px;
+    border-radius: 14px;
   }
 
   .result-panel {
-    padding: 40px 16px;
+    padding: 20px 16px;
   }
 
   .guest-actions {
@@ -1719,6 +1774,29 @@ mark {
     width: min(88vw, 340px);
     max-width: calc(100vw - 6px);
     padding-inline: 14px;
+  }
+
+  .panel-header-row {
+    gap: 10px;
+  }
+
+  .panel-header-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .panel-header-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .panel-header-text h3 {
+    font-size: 0.98rem;
+  }
+
+  .panel-header-text p {
+    font-size: 0.84rem;
   }
 
   .custom-select-trigger {
