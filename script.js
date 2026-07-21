@@ -9,6 +9,21 @@ const API_BASE_URL = (() => {
     return configured.replace(/\/+$/, "");
   }
 
+  // Check if running in local development
+  if (
+    typeof window !== "undefined" &&
+    window.location &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "::1" ||
+      window.location.hostname.match(/^192\.168\./) ||
+      window.location.hostname.match(/^10\./) ||
+      window.location.hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./))
+  ) {
+    return "http://localhost:3000";
+  }
+
+  // For production (Render, etc.), use the same origin as the frontend
   if (
     typeof window !== "undefined" &&
     window.location &&
@@ -21,6 +36,7 @@ const API_BASE_URL = (() => {
 })();
 const DEFAULT_RESULT_MESSAGE = "Sign in to save and revisit your summaries.";
 const THEME_STORAGE_KEY = "theme";
+const LANGUAGE_STORAGE_KEY = "summaryLanguage";
 const DEFAULT_SUMMARY_TEXT = "Your summary will appear here after processing.";
 const DEFAULT_HISTORY_EMPTY = "No saved summaries yet. Generate one while logged in to see it here.";
 const GUEST_HISTORY_MESSAGE = "Login to view your saved summaries";
@@ -65,6 +81,11 @@ document.addEventListener("DOMContentLoaded", () => {
     historyList: document.getElementById("historyList"),
     historySidebar: document.getElementById("historySidebar"),
     historyShortcut: document.getElementById("historyShortcut"),
+    languageButton: document.getElementById("languageButton"),
+    languageLabel: document.getElementById("languageLabel"),
+    languageMenu: document.getElementById("languageMenu"),
+    languageSelect: document.getElementById("languageSelect"),
+    selectedLanguage: document.getElementById("selectedLanguage"),
     loadingState: document.getElementById("loadingState"),
     loginButton: document.getElementById("loginButton"),
     loginTab: document.getElementById("loginTab"),
@@ -105,6 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
     selectedFiles: [],
     selectedHistoryId: null,
     summaryTypeMenuOpen: false,
+    languageMenuOpen: false,
     dropzoneDragDepth: 0,
   };
 
@@ -114,10 +136,48 @@ document.addEventListener("DOMContentLoaded", () => {
     { value: "bullets", label: "Bullet Points" },
   ];
 
+  const languageOptions = [
+    "English",
+    "Hindi",
+    "Spanish",
+    "French",
+    "German",
+    "Italian",
+    "Portuguese",
+    "Russian",
+    "Chinese (Simplified)",
+    "Chinese (Traditional)",
+    "Japanese",
+    "Korean",
+    "Arabic",
+    "Turkish",
+    "Tamil",
+    "Telugu",
+    "Kannada",
+    "Malayalam",
+    "Gujarati",
+    "Punjabi",
+    "Marathi",
+    "Bengali",
+    "Dutch",
+    "Polish",
+    "Vietnamese",
+    "Thai",
+    "Indonesian",
+    "Romanian",
+    "Greek",
+    "Hebrew",
+  ];
+
   const missingCriticalElements = [
     "fileInput",
     "form",
     "historyList",
+    "languageButton",
+    "languageLabel",
+    "languageMenu",
+    "languageSelect",
+    "selectedLanguage",
     "messageBox",
     "statusText",
     "submitButton",
@@ -248,6 +308,107 @@ document.addEventListener("DOMContentLoaded", () => {
 
     syncSummaryTypeUI(nextOption.dataset.summaryType);
     nextOption.focus();
+  }
+
+  function getLanguageOptionElements() {
+    return Array.from(document.querySelectorAll("[data-language]"));
+  }
+
+  function closeLanguageMenu() {
+    if (!elements.languageMenu || !elements.languageButton || !elements.languageSelect) {
+      return;
+    }
+
+    state.languageMenuOpen = false;
+    elements.languageSelect.parentElement?.classList.remove("is-open");
+    elements.languageMenu.classList.remove("is-open");
+    elements.languageButton.setAttribute("aria-expanded", "false");
+    window.setTimeout(() => {
+      if (!state.languageMenuOpen) {
+        elements.languageMenu.hidden = true;
+      }
+    }, 180);
+  }
+
+  function openLanguageMenu() {
+    if (!elements.languageMenu || !elements.languageButton || !elements.languageSelect) {
+      return;
+    }
+
+    state.languageMenuOpen = true;
+    elements.languageMenu.hidden = false;
+    elements.languageSelect.parentElement?.classList.add("is-open");
+    requestAnimationFrame(() => {
+      elements.languageMenu.classList.add("is-open");
+      elements.languageButton.setAttribute("aria-expanded", "true");
+      const selectedOption = getLanguageOptionElements().find(
+        (option) => option.dataset.language === elements.selectedLanguage.value
+      );
+      selectedOption?.focus();
+    });
+  }
+
+  function toggleLanguageMenu() {
+    if (state.languageMenuOpen) {
+      closeLanguageMenu();
+      return;
+    }
+
+    openLanguageMenu();
+  }
+
+  function syncLanguageUI(value) {
+    const normalizedValue = languageOptions.includes(value) ? value : "English";
+    
+    if (elements.selectedLanguage) {
+      elements.selectedLanguage.value = normalizedValue;
+    }
+
+    if (elements.languageLabel) {
+      elements.languageLabel.textContent = normalizedValue;
+    }
+
+    getLanguageOptionElements().forEach((option) => {
+      const isSelected = option.dataset.language === normalizedValue;
+      option.classList.toggle("is-selected", isSelected);
+      option.setAttribute("aria-selected", String(isSelected));
+      option.tabIndex = isSelected ? 0 : -1;
+    });
+
+    // Persist to localStorage
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, normalizedValue);
+  }
+
+  function moveLanguageSelection(direction) {
+    const options = getLanguageOptionElements();
+
+    if (!options.length || !elements.selectedLanguage) {
+      return;
+    }
+
+    const currentIndex = Math.max(
+      0,
+      options.findIndex((option) => option.dataset.language === elements.selectedLanguage.value)
+    );
+    const nextIndex = (currentIndex + direction + options.length) % options.length;
+    const nextOption = options[nextIndex];
+
+    if (!nextOption) {
+      return;
+    }
+
+    syncLanguageUI(nextOption.dataset.language);
+    nextOption.focus();
+  }
+
+  function getInitialLanguage() {
+    const storedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+
+    if (storedLanguage && languageOptions.includes(storedLanguage)) {
+      return storedLanguage;
+    }
+
+    return "English";
   }
 
   function setMessage(message, variant) {
@@ -1236,6 +1397,52 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  bindEvent(elements.languageButton, "click", "Language toggle clicked", (event) => {
+    event.stopPropagation();
+    toggleLanguageMenu();
+  });
+
+  bindEvent(elements.languageButton, "keydown", "Language trigger keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      openLanguageMenu();
+    }
+  });
+
+  getLanguageOptionElements().forEach((option) => {
+    bindEvent(option, "click", "Language option clicked", () => {
+      const value = option.dataset.language;
+
+      if (!value) {
+        return;
+      }
+
+      syncLanguageUI(value);
+      closeLanguageMenu();
+      elements.languageButton?.focus();
+    });
+  });
+
+  bindEvent(elements.languageMenu, "keydown", "Language menu keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveLanguageSelection(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveLanguageSelection(-1);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLanguageMenu();
+      elements.languageButton?.focus();
+    }
+  });
+
   bindEvent(elements.avatarButton, "click", "Avatar clicked", (event) => {
     event.stopPropagation();
 
@@ -1280,6 +1487,13 @@ document.addEventListener("DOMContentLoaded", () => {
       closeSummaryTypeMenu();
     }
 
+    if (
+      elements.languageSelect &&
+      !elements.languageSelect.parentElement?.contains(event.target)
+    ) {
+      closeLanguageMenu();
+    }
+
     if (!elements.profileMenu || elements.profileMenu.hidden) {
       return;
     }
@@ -1296,6 +1510,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     logDebug("Escape key pressed");
     closeSummaryTypeMenu();
+    closeLanguageMenu();
     closeProfileDropdown();
 
     if (elements.authModal && !elements.authModal.hidden) {
@@ -1504,6 +1719,7 @@ document.addEventListener("DOMContentLoaded", () => {
           payload: {
             fileCount: uploadResult.data.files?.length || 0,
             summaryType: elements.summaryTypeSelect.value,
+            language: elements.selectedLanguage.value,
           },
         })
       );
@@ -1517,6 +1733,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           files: uploadResult.data.files,
           summaryType: elements.summaryTypeSelect.value,
+          language: elements.selectedLanguage.value,
         }),
       });
       const summaryResult = await parseApiResponse(summaryResponse);
@@ -1559,6 +1776,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   applyTheme(getInitialTheme());
   syncSummaryTypeUI(elements.summaryTypeSelect.value);
+  syncLanguageUI(getInitialLanguage());
   document.body.classList.remove("sidebar-open");
   elements.historySidebar?.classList.add("is-closed");
   elements.authModal?.classList.add("is-closed");

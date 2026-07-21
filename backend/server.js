@@ -426,9 +426,11 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
       fileName = DEFAULT_FILE_PLACEHOLDER,
       files,
       summaryType = "short",
+      language = "English",
     } = req.body;
 
     const normalizedSummaryType = normalizeSummaryType(summaryType);
+    const normalizedLanguage = language && typeof language === "string" ? language.trim() : "English";
     const summaryTargets = Array.isArray(files) && files.length
       ? files
       : [{ fileName, extractedText: text }];
@@ -445,6 +447,7 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
         fileName,
         summaryType,
         normalizedSummaryType,
+        language: normalizedLanguage,
         fileCount: summaryTargets.length,
         textLength: typeof text === "string" ? text.length : null,
       })
@@ -470,7 +473,8 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
           targetText,
           targetFileName,
           normalizedSummaryType,
-          req.requestId
+          req.requestId,
+          normalizedLanguage
         );
         const historyItem = req.user
           ? await saveSummaryToHistory({

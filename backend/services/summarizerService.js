@@ -117,14 +117,15 @@ function buildUserFacingSummaryError(failureEvents = []) {
   return DEFAULT_SUMMARY_ERROR;
 }
 
-function buildSummaryPrompt(fileName, excerpt, summaryType) {
+function buildSummaryPrompt(fileName, excerpt, summaryType, language = "English") {
   const typeConfig = getSummaryTypeConfig(summaryType);
+  const languageInstruction = `Generate the summary directly in ${language}. Do NOT translate from an intermediate language. Read the uploaded document regardless of its source language and produce the final answer directly in ${language}.`;
 
   return {
     system:
       "You summarize documents for a professional web app. Keep the output polished, readable, and useful.",
-    user: `File name: ${fileName}\nSummary type: ${typeConfig.label}\nInstructions: ${typeConfig.cohereInstruction}\n\nDocument text:\n${excerpt}`,
-    huggingFaceInput: `${typeConfig.huggingFacePrefix}File name: ${fileName}\nDocument text:\n${excerpt}`,
+    user: `File name: ${fileName}\nSummary type: ${typeConfig.label}\nLanguage: ${language}\nInstructions: ${typeConfig.cohereInstruction}\n${languageInstruction}\n\nDocument text:\n${excerpt}`,
+    huggingFaceInput: `${typeConfig.huggingFacePrefix}File name: ${fileName}\nLanguage: ${language}\n${languageInstruction}\nDocument text:\n${excerpt}`,
   };
 }
 
@@ -144,7 +145,7 @@ function logProviderFailure({ requestId, provider, summaryType, excerptLength, e
   );
 }
 
-async function summarizeDocument(text, fileName, summaryType, requestId) {
+async function summarizeDocument(text, fileName, summaryType, requestId, language = "English") {
   const normalizedText = normalizeText(text);
 
   if (!normalizedText) {
@@ -152,7 +153,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
   }
 
   const excerpt = truncateTextForSummarization(normalizedText);
-  const prompt = buildSummaryPrompt(fileName, excerpt, summaryType);
+  const prompt = buildSummaryPrompt(fileName, excerpt, summaryType, language);
 
   const failureEvents = [];
   let lastError = null;
@@ -163,6 +164,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
       event: "summarization_started",
       fileName,
       summaryType,
+      language,
       inputLength: normalizedText.length,
       truncatedLength: excerpt.length,
       providerOrder: PROVIDERS.map((provider) => provider.name),
@@ -177,6 +179,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
         prompt,
         requestId,
         summaryType,
+        language,
       });
     } catch (error) {
       lastError = error;
@@ -202,6 +205,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId) {
       requestId,
       event: "summarization_failed",
       summaryType,
+      language,
       excerptLength: excerpt.length,
       failures: failureEvents,
       lastReason: lastError?.message || "Unknown error",

@@ -765,7 +765,14 @@ input[type="file"] {
 
 .controls-grid{
   display: grid;
-  gap: 0;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .controls-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
 }
 
 .auth-form{
@@ -882,6 +889,9 @@ input[type="file"] {
   transform: translateY(-4px) scale(0.98);
   pointer-events: none;
   visibility: hidden;
+  max-height: min(340px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .custom-select-menu.is-open {
