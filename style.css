@@ -498,11 +498,25 @@ select,
   max-width: 100%;
 }
 
-.auth-dialog,
+/* .auth-dialog,
 .history-sidebar {
   border-radius: 28px;
-  backdrop-filter: blur(14px);
-  background: var(--panel);
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+} */
+
+.auth-dialog {
+  border-radius: 28px;
+  background: var(--bg-page);   /* or use #ffffff for pure white, or var(--panel) if you want it to match the app's card color */
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  isolation: isolate;
+}
+
+.history-sidebar {
+  border-radius: 28px;
+  background: var(--panel-strong);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -749,10 +763,14 @@ input[type="file"] {
   display: none;
 }
 
-.controls-grid,
-.auth-form {
+.controls-grid{
   display: grid;
   gap: 0;
+}
+
+.auth-form{
+  display: grid;
+  gap: 16px;
 }
 
 .field {
@@ -1264,12 +1282,13 @@ mark {
 
 .history-sidebar {
   position: fixed;
-  left: max(12px, env(safe-area-inset-left, 0px));
-  top: var(--sidebar-offset);
-  bottom: max(20px, env(safe-area-inset-bottom, 0px));
-  /* Avoid 100vw (scrollbar overflow); cap to viewport via max-width */
-  width: min(340px, calc(100% - 24px));
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: min(360px, calc(100% - 24px));
   padding: 24px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
   z-index: 1200;
   display: flex;
   flex-direction: column;
@@ -1278,6 +1297,7 @@ mark {
   transform: translateX(-108%);
   opacity: 0;
   pointer-events: none;
+  border-radius: 0 28px 28px 0;
 }
 
 .history-sidebar.is-closed {
@@ -1392,7 +1412,8 @@ mark {
 .auth-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(6, 12, 22, 0.38);
+  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .auth-dialog {
@@ -1463,7 +1484,8 @@ mark {
 }
 
 .auth-actions {
-  gap: 12px;
+  display: flex;
+  gap: 18px;
   flex-wrap: wrap;
 }
 
