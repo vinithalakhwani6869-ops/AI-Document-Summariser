@@ -119,7 +119,11 @@ function buildUserFacingSummaryError(failureEvents = []) {
 
 function buildSummaryPrompt(fileName, excerpt, summaryType, language = "English") {
   const typeConfig = getSummaryTypeConfig(summaryType);
-  const languageInstruction = `Generate the summary directly in ${language}. Do NOT translate from an intermediate language. Read the uploaded document regardless of its source language and produce the final answer directly in ${language}.`;
+  const isEnglish = !language || String(language).trim().toLowerCase() === "english";
+
+  const languageInstruction = isEnglish
+    ? "Generate the summary directly in English."
+    : `Translate the following summary into the selected language. Preserve every piece of information. Do not shorten, summarize, omit, simplify, or paraphrase the content. Return a complete translation only.\n\nGenerate the summary directly in ${language}. Do NOT translate from an intermediate language. Read the uploaded document regardless of its source language and produce the final answer directly in ${language}.`;
 
   return {
     system:
@@ -173,7 +177,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
 
   for (const provider of PROVIDERS) {
     try {
-      return await provider.summarize({
+      const summary = await provider.summarize({
         excerpt,
         fileName,
         prompt,
@@ -181,6 +185,21 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
         summaryType,
         language,
       });
+
+      console.log(
+        JSON.stringify({
+          requestId,
+          event: "summarization_succeeded",
+          provider: provider.name,
+          summaryType,
+          language,
+          inputLengthChars: excerpt.length,
+          outputLengthChars: summary.length,
+          languageIsEnglish: !language || String(language).trim().toLowerCase() === "english",
+        })
+      );
+
+      return summary;
     } catch (error) {
       lastError = error;
       failureEvents.push({
@@ -212,6 +231,21 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
     })
   );
   const userMessage = buildUserFacingSummaryError(failureEvents);
+
+  console.error(
+    JSON.stringify({
+      requestId,
+      event: "user_facing_error_mapped",
+      mappedMessage: userMessage,
+      originalFailures: failureEvents.map((f) => ({
+        provider: f.provider,
+        status: f.status,
+        code: f.code,
+        reason: f.reason,
+      })),
+    })
+  );
+
   const error = createHttpError(502, userMessage);
   error.details = {
     userMessage,

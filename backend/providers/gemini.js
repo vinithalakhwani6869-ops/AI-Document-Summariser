@@ -89,46 +89,77 @@ function extractGeminiSummary(responseBody) {
   return chunks.length ? normalizeSummaryOutput(chunks.join("\n\n")) : "";
 }
 
-function resolveMaxOutputTokens(summaryType) {
+function isEnglishLanguage(language) {
+  return !language || String(language).trim().toLowerCase() === "english";
+}
+
+function resolveMaxOutputTokens(summaryType, language) {
+  const english = isEnglishLanguage(language);
   switch (summaryType) {
     case "detailed":
       return 8192;
     case "bullets":
       return 4096;
     default:
-      /* Keep aligned with prior short-summary behavior */
-      return 1024;
+      return english ? 1024 : 2048;
   }
 }
 
-function buildGenerationConfig(summaryType) {
+function buildGenerationConfig(summaryType, language) {
   const config = {
     temperature: 0.3,
-    maxOutputTokens: resolveMaxOutputTokens(summaryType),
+    maxOutputTokens: resolveMaxOutputTokens(summaryType, language),
   };
 
-  /*
-   * Only disable reasoning for modes that need longer visible output.
-   * Short summaries keep default Gemini 2.5 behavior + original 1024 cap.
-   */
-  if (summaryType === "detailed" || summaryType === "bullets") {
-    config.thinkingConfig = {
-      thinkingBudget: 0,
-    };
-  }
+  config.thinkingConfig = {
+    thinkingBudget: 0,
+  };
 
   return config;
 }
 
-async function summarize({ prompt, requestId, summaryType = "short" }) {
+async function summarize({ prompt, requestId, summaryType = "short", language = "English" }) {
   const apiKey = normalizeGeminiApiKey();
 
   if (!apiKey) {
     throw createProviderError(500, "Gemini API key is missing.", "missing_api_key");
   }
 
+  const keyValidFormat = apiKey.startsWith("AIza");
+
+  console.log(
+    JSON.stringify({
+      requestId,
+      event: "gemini_key_check",
+      keyPresent: true,
+      keyLength: apiKey.length,
+      keyPrefix: apiKey.slice(0, 6),
+      validKeyFormat: keyValidFormat,
+      model: resolveGeminiModel(),
+      endpoint: geminiGenerateUrl(resolveGeminiModel()),
+      ...(keyValidFormat
+        ? {}
+        : {
+            warning:
+              "GEMINI_API_KEY does not start with 'AIza'. This is likely not a valid Gemini API key. Obtain one from https://aistudio.google.com/apikey",
+          }),
+    })
+  );
+
+  if (!keyValidFormat) {
+    console.warn(
+      JSON.stringify({
+        requestId,
+        event: "gemini_key_invalid_format",
+        keyPrefix: apiKey.slice(0, 6),
+        hint: "API key does not start with 'AIza'. Requests to the Gemini API will likely fail with 401 UNAUTHENTICATED.",
+      })
+    );
+  }
+
   const model = resolveGeminiModel();
   const url = geminiGenerateUrl(model);
+  const generationConfig = buildGenerationConfig(summaryType, language);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
@@ -142,6 +173,9 @@ async function summarize({ prompt, requestId, summaryType = "short" }) {
         provider: PROVIDER_NAME,
         model,
         summaryType,
+        language,
+        maxOutputTokens: generationConfig.maxOutputTokens,
+        thinkingDisabled: Boolean(generationConfig.thinkingConfig),
       })
     );
     const response = await fetch(url, {
@@ -151,7 +185,7 @@ async function summarize({ prompt, requestId, summaryType = "short" }) {
         "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
-        generationConfig: buildGenerationConfig(summaryType),
+        generationConfig,
         contents: [
           {
             parts: [
@@ -174,6 +208,13 @@ async function summarize({ prompt, requestId, summaryType = "short" }) {
       responseBody = null;
     }
 
+    const finishReason =
+      responseBody?.candidates?.[0]?.finishReason || "UNKNOWN";
+    const usageMetadata = responseBody?.usageMetadata || {};
+    const candidatesTokenCount = usageMetadata.candidatesTokenCount || 0;
+    const thoughtsTokenCount = usageMetadata.thoughtsTokenCount || 0;
+    const promptTokenCount = usageMetadata.promptTokenCount || 0;
+
     console.log(
       JSON.stringify({
         requestId,
@@ -191,18 +232,63 @@ async function summarize({ prompt, requestId, summaryType = "short" }) {
         (rawText && rawText.length < 600 ? rawText.trim() : "") ||
         `Gemini API request failed with status ${response.status}.`;
       const errorCode = responseBody?.error?.status || "api_error";
+
+      console.error(
+        JSON.stringify({
+          requestId,
+          event: "gemini_api_error",
+          provider: PROVIDER_NAME,
+          status: response.status,
+          errorCode,
+          errorMessage: apiMessage,
+          model,
+          url,
+          rawPreview: String(rawText || "").slice(0, 800),
+        })
+      );
+
       throw createProviderError(response.status, apiMessage, errorCode);
     }
 
     const summary = extractGeminiSummary(responseBody);
 
+    console.log(
+      JSON.stringify({
+        requestId,
+        event: "gemini_output_metrics",
+        provider: PROVIDER_NAME,
+        language,
+        summaryType,
+        model,
+        maxOutputTokens: generationConfig.maxOutputTokens,
+        finishReason,
+        outputLengthChars: summary.length,
+        candidatesTokenCount,
+        thoughtsTokenCount,
+        promptTokenCount,
+        outputTruncated: finishReason === "MAX_TOKENS",
+      })
+    );
+
+    if (finishReason === "MAX_TOKENS") {
+      console.warn(
+        JSON.stringify({
+          requestId,
+          event: "gemini_output_truncated",
+          hint: `finishReason=MAX_TOKENS. The ${language} summary was cut off at ${candidatesTokenCount} output tokens (maxOutputTokens=${generationConfig.maxOutputTokens}). Consider increasing the token budget.`,
+          language,
+          summaryType,
+          maxOutputTokens: generationConfig.maxOutputTokens,
+          candidatesTokenCount,
+        })
+      );
+    }
+
     if (!summary) {
       const detail = describeGeminiBlockOrFinish(responseBody);
-      const thoughts = responseBody?.usageMetadata?.thoughtsTokenCount;
-      const candidatesTokens = responseBody?.usageMetadata?.candidatesTokenCount;
       const hint =
-        typeof thoughts === "number" && thoughts > 0 && (!candidatesTokens || candidatesTokens === 0)
-          ? ` Output budget may have been consumed by reasoning tokens (thoughtsTokenCount=${thoughts}).`
+        typeof thoughtsTokenCount === "number" && thoughtsTokenCount > 0 && (!candidatesTokenCount || candidatesTokenCount === 0)
+          ? ` Output budget may have been consumed by reasoning tokens (thoughtsTokenCount=${thoughtsTokenCount}).`
           : "";
       throw createProviderError(
         502,

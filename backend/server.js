@@ -53,6 +53,28 @@ console.log(
   })
 );
 
+const geminiKeyRaw = String(
+  process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
+).trim();
+const geminiKeyNormalized = geminiKeyRaw.replace(/^["']|["']$/g, "");
+const geminiKeyPresent = Boolean(geminiKeyNormalized && geminiKeyNormalized !== "your_key_here");
+const geminiKeyValidFormat = geminiKeyPresent && geminiKeyNormalized.startsWith("AIza");
+
+console.log(
+  JSON.stringify({
+    event: "gemini_key_validation",
+    keyPresent: geminiKeyPresent,
+    keyLength: geminiKeyNormalized.length,
+    keyPrefix: geminiKeyNormalized ? geminiKeyNormalized.slice(0, 6) : "(empty)",
+    validKeyFormat: geminiKeyValidFormat,
+    hint: !geminiKeyPresent
+      ? "GEMINI_API_KEY is missing from environment."
+      : !geminiKeyValidFormat
+        ? "GEMINI_API_KEY does not look like a standard Google API key (should start with 'AIza'). Get a key from https://aistudio.google.com/apikey"
+        : "GEMINI_API_KEY format looks correct.",
+  })
+);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
