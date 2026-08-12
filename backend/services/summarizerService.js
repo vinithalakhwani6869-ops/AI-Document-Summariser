@@ -73,11 +73,15 @@ function buildUserFacingSummaryError(failureEvents = []) {
     return "Missing API configuration.";
   }
 
+  if (codes.includes("api_not_enabled") || reasons.some((reason) => reason.includes("generative language api is not enabled"))) {
+    return "Gemini API access is not enabled for this project. Please enable the Generative Language API at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com";
+  }
+
   if (
     statuses.includes(401) ||
-    reasons.some((reason) => reason.includes("invalid api key") || reason.includes("unauthorized"))
+    reasons.some((reason) => reason.includes("invalid api key") || reason.includes("unauthorized") || reason.includes("incorrect api key"))
   ) {
-    return "AI provider authentication failed.";
+    return "AI provider authentication failed. Please verify your API keys are valid.";
   }
 
   if (
@@ -89,9 +93,9 @@ function buildUserFacingSummaryError(failureEvents = []) {
 
   if (
     statuses.includes(403) ||
-    reasons.some((reason) => reason.includes("forbidden") || reason.includes("blocked model access"))
+    reasons.some((reason) => reason.includes("forbidden") || reason.includes("blocked"))
   ) {
-    return "AI provider access is blocked for this model.";
+    return "AI provider access is blocked. The Generative Language API may not be enabled. Enable it at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com";
   }
 
   if (statuses.includes(429) || reasons.some((reason) => reason.includes("rate limit"))) {

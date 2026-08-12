@@ -178,24 +178,27 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
         thinkingDisabled: Boolean(generationConfig.thinkingConfig),
       })
     );
+
+    const requestBody = {
+      generationConfig,
+      contents: [
+        {
+          parts: [
+            {
+              text: `${prompt.system}\n\n${prompt.user}`,
+            },
+          ],
+        },
+      ],
+    };
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify({
-        generationConfig,
-        contents: [
-          {
-            parts: [
-              {
-                text: `${prompt.system}\n\n${prompt.user}`,
-              },
-            ],
-          },
-        ],
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 
@@ -232,6 +235,7 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
         (rawText && rawText.length < 600 ? rawText.trim() : "") ||
         `Gemini API request failed with status ${response.status}.`;
       const errorCode = responseBody?.error?.status || "api_error";
+      const errorReason = responseBody?.error?.details?.[0]?.reason || "";
 
       console.error(
         JSON.stringify({
@@ -240,12 +244,19 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
           provider: PROVIDER_NAME,
           status: response.status,
           errorCode,
+          errorReason,
           errorMessage: apiMessage,
           model,
-          url,
-          rawPreview: String(rawText || "").slice(0, 800),
         })
       );
+
+      if (response.status === 403 && (errorCode === "PERMISSION_DENIED" || errorReason === "API_KEY_SERVICE_BLOCKED")) {
+        throw createProviderError(
+          403,
+          "The Generative Language API is not enabled for this Google Cloud project. Enable it at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com",
+          "api_not_enabled"
+        );
+      }
 
       throw createProviderError(response.status, apiMessage, errorCode);
     }

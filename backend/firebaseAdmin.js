@@ -6,7 +6,6 @@ function getPrivateKey() {
   if (!process.env.FIREBASE_PRIVATE_KEY) {
     return "";
   }
-
   return process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n");
 }
 
@@ -34,7 +33,6 @@ function ensureFirebaseAdminApp() {
       }),
     });
   }
-
   return getApps()[0];
 }
 
@@ -63,10 +61,7 @@ function hasPublicFirebaseConfig() {
   const config = getPublicFirebaseConfig();
 
   return Boolean(
-    config.apiKey &&
-      config.authDomain &&
-      config.projectId &&
-      config.appId
+    config.apiKey && config.authDomain && config.projectId && config.storageBucket && config.messagingSenderId && config.appId
   );
 }
 

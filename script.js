@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     closeSidebarButton: document.getElementById("closeSidebarButton"),
     dropzone: document.getElementById("dropzone"),
     fileInput: document.getElementById("fileInput"),
+    fileMeta: document.getElementById("fileMeta"),
     fileNameText: document.getElementById("fileName"),
     form: document.getElementById("uploadform"),
     guestActions: document.getElementById("guestActions"),
@@ -111,6 +112,17 @@ document.addEventListener("DOMContentLoaded", () => {
     summaryTypeSelect: document.getElementById("summaryType"),
     themeToggle: document.getElementById("themeToggle"),
     themeTogglePath: document.getElementById("themeTogglePath"),
+    uploadEmptyState: document.getElementById("uploadEmptyState"),
+    settingsButton: document.getElementById("settingsButton"),
+    settingsPage: document.getElementById("settingsPage"),
+    settingsBackButton: document.getElementById("settingsBackButton"),
+    settingsThemeToggle: document.getElementById("settingsThemeToggle"),
+    settingsThemeIconPath: document.getElementById("settingsThemeIconPath"),
+    settingsSummaryUsage: document.getElementById("settingsSummaryUsage"),
+    settingsSummaryBar: document.getElementById("settingsSummaryBar"),
+    settingsTranslationUsage: document.getElementById("settingsTranslationUsage"),
+    settingsTranslationBar: document.getElementById("settingsTranslationBar"),
+    settingsUsageReset: document.getElementById("settingsUsageReset"),
   };
 
   const state = {
@@ -168,6 +180,115 @@ document.addEventListener("DOMContentLoaded", () => {
     "Greek",
     "Hebrew",
   ];
+
+  const FREE_PLAN = {
+    summariesPerDay: 5,
+    translationsPerDay: 3,
+  };
+  const USAGE_STORAGE_KEY = "usageData";
+
+  function isEnglishLanguage(lang) {
+    return !lang || lang.toLowerCase().trim() === "english";
+  }
+
+  function getTodayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function getUsageData() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(USAGE_STORAGE_KEY));
+      if (!stored || stored.date !== getTodayKey()) {
+        return { date: getTodayKey(), summaries: 0, translations: 0 };
+      }
+      return stored;
+    } catch {
+      return { date: getTodayKey(), summaries: 0, translations: 0 };
+    }
+  }
+
+  function saveUsageData(data) {
+    try {
+      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(data));
+    } catch { /* ignore */ }
+  }
+
+  function incrementSummaryUsage() {
+    const data = getUsageData();
+    data.summaries += 1;
+    saveUsageData(data);
+    renderUsageWidget();
+  }
+
+  function incrementTranslationUsage() {
+    const data = getUsageData();
+    data.translations += 1;
+    saveUsageData(data);
+    renderUsageWidget();
+  }
+
+  function canGenerate(language) {
+    const data = getUsageData();
+    if (data.summaries >= FREE_PLAN.summariesPerDay) {
+      return { allowed: false, reason: "summary_limit" };
+    }
+    if (!isEnglishLanguage(language) && data.translations >= FREE_PLAN.translationsPerDay) {
+      return { allowed: false, reason: "translation_limit" };
+    }
+    return { allowed: true };
+  }
+
+  function renderUsageWidget() {
+    const data = getUsageData();
+    if (elements.settingsSummaryUsage) {
+      elements.settingsSummaryUsage.textContent = data.summaries;
+    }
+    if (elements.settingsSummaryBar) {
+      const pct = Math.min((data.summaries / FREE_PLAN.summariesPerDay) * 100, 100);
+      elements.settingsSummaryBar.style.width = `${pct}%`;
+    }
+    if (elements.settingsTranslationUsage) {
+      elements.settingsTranslationUsage.textContent = data.translations;
+    }
+    if (elements.settingsTranslationBar) {
+      const pct = Math.min((data.translations / FREE_PLAN.translationsPerDay) * 100, 100);
+      elements.settingsTranslationBar.style.width = `${pct}%`;
+    }
+  }
+
+  function showSettingsPage() {
+    if (elements.settingsPage) elements.settingsPage.hidden = false;
+    const hero = document.querySelector(".hero");
+    const workspace = document.querySelector(".workspace-grid");
+    const usage = document.getElementById("usageWidget");
+    const infoSections = document.querySelectorAll(".info-sections");
+    if (hero) hero.hidden = true;
+    if (workspace) workspace.hidden = true;
+    if (usage) usage.hidden = true;
+    infoSections.forEach((el) => {
+      el.hidden = true;
+    });
+    renderUsageWidget();
+    updateSettingsThemeIcon();
+  }
+
+  function hideSettingsPage() {
+    if (elements.settingsPage) elements.settingsPage.hidden = true;
+    const hero = document.querySelector(".hero");
+    const workspace = document.querySelector(".workspace-grid");
+    const infoSections = document.querySelectorAll(".info-sections");
+    if (hero) hero.hidden = false;
+    if (workspace) workspace.hidden = false;
+    infoSections.forEach((el) => {
+      el.hidden = false;
+    });
+  }
+
+  function updateSettingsThemeIcon() {
+    if (!elements.settingsThemeIconPath) return;
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    elements.settingsThemeIconPath.setAttribute("d", isDark ? themeIcons.dark : themeIcons.light);
+  }
 
   const missingCriticalElements = [
     "fileInput",
@@ -547,6 +668,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applyTheme(theme) {
     const isDark = theme === "dark";
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
     document.documentElement.classList.toggle("dark-mode", isDark);
     document.documentElement.classList.toggle("light-mode", !isDark);
     document.body.classList.toggle("dark-mode", isDark);
@@ -559,6 +681,7 @@ document.addEventListener("DOMContentLoaded", () => {
       isDark ? "Switch to light mode" : "Switch to dark mode"
     );
     elements.themeTogglePath.setAttribute("d", isDark ? themeIcons.dark : themeIcons.light);
+    updateSettingsThemeIcon();
     logDebug("Theme toggled", { theme });
   }
 
@@ -983,19 +1106,59 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.dropzone?.classList.toggle("is-drag-active", isActive);
   }
 
+  function setStatus(text, variant) {
+    if (!elements.statusText) {
+      return;
+    }
+
+    elements.statusText.textContent = text;
+    elements.statusText.className = "status-text";
+
+    if (variant) {
+      elements.statusText.classList.add(`is-${variant}`);
+    }
+  }
+
+  function showFileCards() {
+    if (!elements.fileMeta) {
+      return;
+    }
+
+    elements.fileMeta.removeAttribute("hidden");
+    requestAnimationFrame(() => {
+      elements.fileMeta.classList.add("is-visible");
+    });
+  }
+
+  function hideFileCards() {
+    if (!elements.fileMeta) {
+      return;
+    }
+
+    elements.fileMeta.classList.remove("is-visible");
+    elements.fileMeta.setAttribute("hidden", "");
+  }
+
   function renderSelectedFiles(files) {
     state.selectedFiles = Array.isArray(files) ? files : [];
     syncFileInputWithState();
 
-    if (!state.selectedFiles.length) {
-      elements.selectedFiles.innerHTML =
-        '<p class="selected-files-empty">No files selected yet. Add documents to begin.</p>';
+    const hasFiles = state.selectedFiles.length > 0;
+
+    if (elements.uploadEmptyState) {
+      elements.uploadEmptyState.hidden = hasFiles;
+    }
+
+    if (!hasFiles) {
+      hideFileCards();
+      elements.selectedFiles.innerHTML = "";
       elements.fileNameText.textContent = "No files selected";
       elements.fileNameText.removeAttribute("title");
       elements.dropzone?.classList.remove("has-files");
       return;
     }
 
+    showFileCards();
     elements.fileNameText.textContent =
       state.selectedFiles.length === 1
         ? state.selectedFiles[0].name
@@ -1036,7 +1199,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applySelectedFiles(nextFiles) {
     renderSelectedFiles(nextFiles);
-    elements.statusText.textContent = nextFiles.length ? "Ready to summarize" : "Waiting for upload";
+    if (nextFiles.length) {
+      setStatus("Ready to summarize", "ready");
+    }
   }
 
   function mergeSelectedFiles(incomingFiles) {
@@ -1313,7 +1478,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   bindEvent(elements.themeToggle, "click", "Theme toggle clicked", () => {
-    const nextTheme = document.body.classList.contains("dark-mode") ? "light" : "dark";
+    const nextTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(nextTheme);
+  });
+
+  bindEvent(elements.settingsButton, "click", "Settings button clicked", () => {
+    if (elements.settingsPage && !elements.settingsPage.hidden) {
+      hideSettingsPage();
+    } else {
+      showSettingsPage();
+    }
+  });
+
+  bindEvent(elements.settingsBackButton, "click", "Settings back clicked", () => {
+    hideSettingsPage();
+  });
+
+  bindEvent(elements.settingsThemeToggle, "click", "Settings theme toggle clicked", () => {
+    const nextTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
     applyTheme(nextTheme);
   });
 
@@ -1668,7 +1850,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!files.length) {
       setMessage("Please choose at least one document before generating a summary.", "error");
-      elements.statusText.textContent = "No files selected";
+      setStatus("Error", "error");
+      return;
+    }
+
+    const chosenLanguage = elements.selectedLanguage.value;
+    const usageCheck = canGenerate(chosenLanguage);
+    if (!usageCheck.allowed) {
+      if (usageCheck.reason === "summary_limit") {
+        setMessage("You've reached your daily summary limit (5/day). Try again tomorrow or sign up for more.", "error");
+      } else if (usageCheck.reason === "translation_limit") {
+        setMessage("You've reached your daily translation limit (3/day). Switch to English or try again tomorrow.", "error");
+      }
+      setStatus("Error", "error");
       return;
     }
 
@@ -1679,7 +1873,7 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.resultPanel.hidden = false;
       }
       state.selectedHistoryId = null;
-      elements.statusText.textContent = "Uploading documents";
+      setStatus("Summarizing...", "summarizing");
       setMessage("Uploading and extracting text from your selected files...", "loading");
 
       const authHeaders = await getOptionalAuthHeaders();
@@ -1708,7 +1902,7 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(getApiErrorMessage(uploadResult, "We could not process those files."));
       }
 
-      elements.statusText.textContent = `Extracted ${uploadResult.data.characterCount} characters`;
+      setStatus("Summarizing...", "summarizing");
       setMessage("Files processed successfully. Generating your summary now...", "loading");
 
       console.log(
@@ -1746,7 +1940,13 @@ document.addEventListener("DOMContentLoaded", () => {
       hideLoadingState();
       setSummaryState(results);
 
-      elements.statusText.textContent = "Summary ready";
+      incrementSummaryUsage();
+      const lang = elements.selectedLanguage.value;
+      if (!isEnglishLanguage(lang)) {
+        incrementTranslationUsage();
+      }
+
+      setStatus("Done", "done");
       const successCount = results.filter((result) => result.status === "success").length;
       const errorCount = results.filter((result) => result.status === "error").length;
       setMessage(
@@ -1759,7 +1959,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await fetchHistory();
     } catch (error) {
       hideLoadingState();
-      elements.statusText.textContent = "Something went wrong";
+      setStatus("Error", "error");
       setSummaryState(
         files.map((file) => ({
           fileName: file.name,
@@ -1803,6 +2003,46 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  function initScrollReveal() {
+    const sections = Array.from(document.querySelectorAll("[data-reveal-section]"));
+    if (!sections.length) {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion || typeof IntersectionObserver === "undefined") {
+      sections.forEach((section) => section.classList.add("is-revealed"));
+      return;
+    }
+
+    document.documentElement.classList.add("js-reveal");
+
+    sections.forEach((section) => {
+      section.querySelectorAll("[data-reveal-stagger]").forEach((container) => {
+        Array.from(container.children).forEach((child, index) => {
+          child.style.setProperty("--reveal-order", String(index));
+        });
+      });
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return;
+          }
+
+          entry.target.classList.add("is-revealed");
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -6% 0px" }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+  }
+
   syncSidebarOffset();
   window.addEventListener("resize", syncSidebarOffset);
   window.addEventListener("resize", () => {
@@ -1828,6 +2068,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   requestAnimationFrame(() => syncSidebarOffset());
+
+  initScrollReveal();
 
   initializeFirebase().catch((error) => {
     console.warn("Firebase startup check failed.", error);
