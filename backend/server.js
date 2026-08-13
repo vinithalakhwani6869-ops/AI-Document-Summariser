@@ -81,6 +81,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_FILES = 5;
 const MAX_COMBINED_TEXT_LENGTH = 18000;
 const HISTORY_LIMIT = 30;
+const FREE_SUMMARY_DAILY_LIMIT = 6;
 const DEFAULT_FILE_PLACEHOLDER = "document";
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
   .split(",")
@@ -375,6 +376,23 @@ async function getUserHistory(userId) {
   });
 }
 
+function getDailyUsageStart() {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  return new Date(`${todayKey}T00:00:00.000Z`);
+}
+
+async function getRemainingDailySummaries(userId) {
+  const db = getFirebaseDb();
+  const snapshot = await db
+    .collection("users")
+    .doc(userId)
+    .collection("summaries")
+    .where("createdAt", ">=", getDailyUsageStart())
+    .get();
+
+  return Math.max(FREE_SUMMARY_DAILY_LIMIT - snapshot.size, 0);
+}
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "file.html"));
 });
@@ -459,6 +477,28 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
 
     if (!summaryTargets.length) {
       throw createHttpError(400, "No document text was provided for summarization.");
+    }
+
+    const requestedSummaryCount = summaryTargets.filter(
+      (target) => typeof target?.extractedText === "string" && target.extractedText.trim()
+    ).length;
+
+    if (req.user && requestedSummaryCount > 0) {
+      const remainingSummaries = await getRemainingDailySummaries(req.user.uid);
+
+      if (remainingSummaries <= 0) {
+        throw createHttpError(
+          429,
+          "You've reached your 6-summary daily limit. Your free limit resets tomorrow."
+        );
+      }
+
+      if (requestedSummaryCount > remainingSummaries) {
+        throw createHttpError(
+          429,
+          `You have ${remainingSummaries} summar${remainingSummaries === 1 ? "y" : "ies"} remaining today. Select fewer files or try again tomorrow.`
+        );
+      }
     }
 
     console.log(

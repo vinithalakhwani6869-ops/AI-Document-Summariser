@@ -120,8 +120,6 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsThemeIconPath: document.getElementById("settingsThemeIconPath"),
     settingsSummaryUsage: document.getElementById("settingsSummaryUsage"),
     settingsSummaryBar: document.getElementById("settingsSummaryBar"),
-    settingsTranslationUsage: document.getElementById("settingsTranslationUsage"),
-    settingsTranslationBar: document.getElementById("settingsTranslationBar"),
     settingsUsageReset: document.getElementById("settingsUsageReset"),
   };
 
@@ -182,14 +180,9 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
 
   const FREE_PLAN = {
-    summariesPerDay: 5,
-    translationsPerDay: 3,
+    summariesPerDay: 6,
   };
   const USAGE_STORAGE_KEY = "usageData";
-
-  function isEnglishLanguage(lang) {
-    return !lang || lang.toLowerCase().trim() === "english";
-  }
 
   function getTodayKey() {
     return new Date().toISOString().slice(0, 10);
@@ -199,11 +192,14 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const stored = JSON.parse(localStorage.getItem(USAGE_STORAGE_KEY));
       if (!stored || stored.date !== getTodayKey()) {
-        return { date: getTodayKey(), summaries: 0, translations: 0 };
+        return { date: getTodayKey(), summaries: 0 };
       }
-      return stored;
+      return {
+        date: stored.date,
+        summaries: Number.isFinite(stored.summaries) ? stored.summaries : 0,
+      };
     } catch {
-      return { date: getTodayKey(), summaries: 0, translations: 0 };
+      return { date: getTodayKey(), summaries: 0 };
     }
   }
 
@@ -213,27 +209,22 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch { /* ignore */ }
   }
 
-  function incrementSummaryUsage() {
+  function incrementSummaryUsage(count = 1) {
     const data = getUsageData();
-    data.summaries += 1;
+    data.summaries += count;
     saveUsageData(data);
     renderUsageWidget();
   }
 
-  function incrementTranslationUsage() {
+  function canGenerate(requestedCount = 1) {
     const data = getUsageData();
-    data.translations += 1;
-    saveUsageData(data);
-    renderUsageWidget();
-  }
+    const remaining = Math.max(FREE_PLAN.summariesPerDay - data.summaries, 0);
 
-  function canGenerate(language) {
-    const data = getUsageData();
     if (data.summaries >= FREE_PLAN.summariesPerDay) {
       return { allowed: false, reason: "summary_limit" };
     }
-    if (!isEnglishLanguage(language) && data.translations >= FREE_PLAN.translationsPerDay) {
-      return { allowed: false, reason: "translation_limit" };
+    if (requestedCount > remaining) {
+      return { allowed: false, reason: "summary_batch_limit", remaining };
     }
     return { allowed: true };
   }
@@ -246,13 +237,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.settingsSummaryBar) {
       const pct = Math.min((data.summaries / FREE_PLAN.summariesPerDay) * 100, 100);
       elements.settingsSummaryBar.style.width = `${pct}%`;
-    }
-    if (elements.settingsTranslationUsage) {
-      elements.settingsTranslationUsage.textContent = data.translations;
-    }
-    if (elements.settingsTranslationBar) {
-      const pct = Math.min((data.translations / FREE_PLAN.translationsPerDay) * 100, 100);
-      elements.settingsTranslationBar.style.width = `${pct}%`;
     }
   }
 
@@ -1854,13 +1838,15 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const chosenLanguage = elements.selectedLanguage.value;
-    const usageCheck = canGenerate(chosenLanguage);
+    const usageCheck = canGenerate(files.length);
     if (!usageCheck.allowed) {
       if (usageCheck.reason === "summary_limit") {
-        setMessage("You've reached your daily summary limit (5/day). Try again tomorrow or sign up for more.", "error");
-      } else if (usageCheck.reason === "translation_limit") {
-        setMessage("You've reached your daily translation limit (3/day). Switch to English or try again tomorrow.", "error");
+        setMessage("You've reached your 6-summary daily limit. Your free limit resets tomorrow.", "error");
+      } else if (usageCheck.reason === "summary_batch_limit") {
+        setMessage(
+          `You have ${usageCheck.remaining} summar${usageCheck.remaining === 1 ? "y" : "ies"} remaining today. Select fewer files or try again tomorrow.`,
+          "error"
+        );
       }
       setStatus("Error", "error");
       return;
@@ -1940,15 +1926,13 @@ document.addEventListener("DOMContentLoaded", () => {
       hideLoadingState();
       setSummaryState(results);
 
-      incrementSummaryUsage();
-      const lang = elements.selectedLanguage.value;
-      if (!isEnglishLanguage(lang)) {
-        incrementTranslationUsage();
+      const successCount = results.filter((result) => result.status === "success").length;
+      const errorCount = results.filter((result) => result.status === "error").length;
+      if (successCount > 0) {
+        incrementSummaryUsage(successCount);
       }
 
       setStatus("Done", "done");
-      const successCount = results.filter((result) => result.status === "success").length;
-      const errorCount = results.filter((result) => result.status === "error").length;
       setMessage(
         errorCount
           ? `${successCount} summaries completed. ${errorCount} file${errorCount === 1 ? "" : "s"} could not be summarized.`

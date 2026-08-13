@@ -1625,6 +1625,12 @@ mark {
   border-top: none;
 }
 
+#whoIsItFor,
+#whyIsItBetter,
+#faq {
+  border-top: 1px solid #808080;
+}
+
 /* Section background tiers — dark color-blocked sections.
    The first four share .info-sections' background (one continuous dark block);
    only their text colors are set here. */
@@ -2174,7 +2180,7 @@ mark {
 
 .settings-usage-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
