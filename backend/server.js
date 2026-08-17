@@ -25,6 +25,10 @@ const {
   summarizeDocument,
   normalizeSummaryType,
 } = require("./services/summarizerService");
+const {
+  encrypt,
+  decrypt,
+} = require("./utils/encryption");
 
 console.log(
   JSON.stringify({
@@ -393,6 +397,43 @@ async function getRemainingDailySummaries(userId) {
   return Math.max(FREE_SUMMARY_DAILY_LIMIT - snapshot.size, 0);
 }
 
+async function getUserGeminiApiKey(userId) {
+  try {
+    const db = getFirebaseDb();
+    const userDoc = await db.collection("users").doc(userId).get();
+    
+    if (!userDoc.exists || !userDoc.data().geminiApiKey) {
+      return null;
+    }
+
+    const encryptedKey = userDoc.data().geminiApiKey;
+    return decrypt(encryptedKey);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "byok_key_decryption_failed",
+        userId,
+        error: error.message,
+      })
+    );
+    return null;
+  }
+}
+
+async function resolveGeminiApiKey(req) {
+  const { user } = req;
+  
+  if (user) {
+    const userApiKey = await getUserGeminiApiKey(user.uid);
+    
+    if (userApiKey) {
+      return userApiKey;
+    }
+  }
+  
+  return geminiKeyNormalized;
+}
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "file.html"));
 });
@@ -429,6 +470,175 @@ app.get("/api/history", requireAuth, async (req, res, next) => {
     const items = await getUserHistory(req.user.uid);
     res.json({ items });
   } catch (error) {
+    next(error);
+  }
+});
+
+async function validateGeminiApiKey(apiKey, requestId) {
+  try {
+    const model = "gemini-2.5-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    
+    const response = await fetch(`${url}?key=${apiKey}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 10,
+        },
+        contents: [
+          {
+            parts: [
+              {
+                text: "test",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        JSON.stringify({
+          requestId,
+          event: "gemini_key_validation_failed",
+          status: response.status,
+          error: errorText,
+        })
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        requestId,
+        event: "gemini_key_validation_error",
+        error: error.message,
+      })
+    );
+    return false;
+  }
+}
+
+app.post("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
+  try {
+    const { apiKey } = req.body;
+    
+    if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+      throw createHttpError(400, "API key is required.");
+    }
+
+    const normalizedKey = apiKey.trim().replace(/^["']|["']$/g, "");
+    
+    if (!normalizedKey.startsWith("AIza")) {
+      throw createHttpError(400, "Invalid Gemini API key format. Keys should start with 'AIza'.");
+    }
+
+    console.log(
+      JSON.stringify({
+        requestId: req.requestId,
+        event: "byok_validation_started",
+        userId: req.user.uid,
+        keyPrefix: normalizedKey.slice(0, 6),
+      })
+    );
+
+    const isValid = await validateGeminiApiKey(normalizedKey, req.requestId);
+    
+    if (!isValid) {
+      throw createHttpError(400, "We couldn't connect this Gemini API key. Please check your key and try again.");
+    }
+
+    const encryptedKey = encrypt(normalizedKey);
+    const db = getFirebaseDb();
+    
+    await db
+      .collection("users")
+      .doc(req.user.uid)
+      .set(
+        {
+          geminiApiKey: encryptedKey,
+          geminiProvider: "gemini",
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+
+    console.log(
+      JSON.stringify({
+        requestId: req.requestId,
+        event: "byok_key_saved",
+        userId: req.user.uid,
+      })
+    );
+
+    res.json({
+      success: true,
+      message: "Gemini API key connected. Your future AI requests will use your own Gemini API quota.",
+    });
+  } catch (error) {
+    logServerError(error, req, "byok_save");
+    next(error);
+  }
+});
+
+app.get("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
+  try {
+    const db = getFirebaseDb();
+    const userDoc = await db.collection("users").doc(req.user.uid).get();
+    
+    if (!userDoc.exists || !userDoc.data().geminiApiKey) {
+      res.json({
+        connected: false,
+        provider: null,
+      });
+      return;
+    }
+
+    res.json({
+      connected: true,
+      provider: "gemini",
+    });
+  } catch (error) {
+    logServerError(error, req, "byok_get");
+    next(error);
+  }
+});
+
+app.delete("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
+  try {
+    const db = getFirebaseDb();
+    
+    await db
+      .collection("users")
+      .doc(req.user.uid)
+      .update({
+        geminiApiKey: null,
+        geminiProvider: null,
+        updatedAt: new Date(),
+      });
+
+    console.log(
+      JSON.stringify({
+        requestId: req.requestId,
+        event: "byok_key_deleted",
+        userId: req.user.uid,
+      })
+    );
+
+    res.json({
+      success: true,
+      message: "Gemini API key disconnected. Your requests will use the app's free plan again.",
+    });
+  } catch (error) {
+    logServerError(error, req, "byok_delete");
     next(error);
   }
 });
@@ -483,13 +693,25 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
       (target) => typeof target?.extractedText === "string" && target.extractedText.trim()
     ).length;
 
-    if (req.user && requestedSummaryCount > 0) {
+    const geminiApiKey = await resolveGeminiApiKey(req);
+    const usingByok = geminiApiKey !== geminiKeyNormalized;
+    
+    console.log(
+      JSON.stringify({
+        requestId: req.requestId,
+        event: "key_source_determined",
+        usingByok,
+        keySource: usingByok ? "user" : "application",
+      })
+    );
+
+    if (req.user && requestedSummaryCount > 0 && !usingByok) {
       const remainingSummaries = await getRemainingDailySummaries(req.user.uid);
 
       if (remainingSummaries <= 0) {
         throw createHttpError(
           429,
-          "You've reached your 6-summary daily limit. Your free limit resets tomorrow."
+          "You've reached today's free limit. Come back tomorrow or use your own Gemini API key."
         );
       }
 
@@ -512,6 +734,7 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
         language: normalizedLanguage,
         fileCount: summaryTargets.length,
         textLength: typeof text === "string" ? text.length : null,
+        usingByok,
       })
     );
     const results = [];
@@ -536,7 +759,8 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
           targetFileName,
           normalizedSummaryType,
           req.requestId,
-          normalizedLanguage
+          normalizedLanguage,
+          geminiApiKey
         );
         const historyItem = req.user
           ? await saveSummaryToHistory({
@@ -572,6 +796,7 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
         fileCount: results.length,
         successCount: results.filter((result) => result.status === "success").length,
         errorCount: results.filter((result) => result.status === "error").length,
+        usingByok,
       })
     );
 

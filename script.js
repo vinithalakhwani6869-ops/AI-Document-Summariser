@@ -121,6 +121,12 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsSummaryUsage: document.getElementById("settingsSummaryUsage"),
     settingsSummaryBar: document.getElementById("settingsSummaryBar"),
     settingsUsageReset: document.getElementById("settingsUsageReset"),
+    geminiApiKeyInput: document.getElementById("geminiApiKeyInput"),
+    connectGeminiKey: document.getElementById("connectGeminiKey"),
+    disconnectGeminiKey: document.getElementById("disconnectGeminiKey"),
+    byokStatus: document.getElementById("byokStatus"),
+    byokDisconnected: document.getElementById("byokDisconnected"),
+    byokConnected: document.getElementById("byokConnected"),
   };
 
   const state = {
@@ -183,6 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     summariesPerDay: 6,
   };
   const USAGE_STORAGE_KEY = "usageData";
+  let byokConnected = false;
 
   function getTodayKey() {
     return new Date().toISOString().slice(0, 10);
@@ -217,6 +224,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function canGenerate(requestedCount = 1) {
+    if (byokConnected) {
+      return { allowed: true };
+    }
+
     const data = getUsageData();
     const remaining = Math.max(FREE_PLAN.summariesPerDay - data.summaries, 0);
 
@@ -254,6 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     renderUsageWidget();
     updateSettingsThemeIcon();
+    fetchByokStatus();
   }
 
   function hideSettingsPage() {
@@ -272,6 +284,115 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.settingsThemeIconPath) return;
     const isDark = document.documentElement.getAttribute("data-theme") === "dark";
     elements.settingsThemeIconPath.setAttribute("d", isDark ? themeIcons.dark : themeIcons.light);
+  }
+
+  async function fetchByokStatus() {
+    if (!state.currentUser) {
+      updateByokUI(false);
+      return;
+    }
+
+    try {
+      const headers = await getOptionalAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/settings/gemini-key`, { headers });
+      const result = await parseApiResponse(response);
+
+      if (result.ok && result.data) {
+        updateByokUI(result.data.connected);
+      } else {
+        updateByokUI(false);
+      }
+    } catch (error) {
+      console.warn("Failed to fetch BYOK status:", error);
+      updateByokUI(false);
+    }
+  }
+
+  function updateByokUI(isConnected) {
+    byokConnected = isConnected;
+    
+    if (elements.byokStatus) {
+      elements.byokStatus.textContent = isConnected ? "✓ Connected" : "Not connected";
+      elements.byokStatus.classList.toggle("connected", isConnected);
+    }
+
+    if (elements.byokDisconnected) {
+      elements.byokDisconnected.hidden = isConnected;
+    }
+
+    if (elements.byokConnected) {
+      elements.byokConnected.hidden = !isConnected;
+    }
+
+    if (elements.geminiApiKeyInput) {
+      elements.geminiApiKeyInput.value = "";
+    }
+  }
+
+  async function connectGeminiKey() {
+    if (!state.currentUser) {
+      setMessage("Please sign in to connect your Gemini API key.", "error");
+      return;
+    }
+
+    const apiKey = elements.geminiApiKeyInput?.value?.trim();
+
+    if (!apiKey) {
+      setMessage("Please enter your Gemini API key.", "error");
+      return;
+    }
+
+    if (!apiKey.startsWith("AIza")) {
+      setMessage("Invalid Gemini API key format. Keys should start with 'AIza'.", "error");
+      return;
+    }
+
+    try {
+      const headers = await getOptionalAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/settings/gemini-key`, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ apiKey }),
+      });
+      const result = await parseApiResponse(response);
+
+      if (result.ok && result.data) {
+        setMessage(result.data.message || "Gemini API key connected successfully.", "success");
+        updateByokUI(true);
+      } else {
+        setMessage(getApiErrorMessage(result, "Failed to connect Gemini API key."), "error");
+      }
+    } catch (error) {
+      setMessage(error.message || "Failed to connect Gemini API key.", "error");
+    }
+  }
+
+  async function disconnectGeminiKey() {
+    if (!state.currentUser) {
+      setMessage("Please sign in to disconnect your Gemini API key.", "error");
+      return;
+    }
+
+    try {
+      const headers = await getOptionalAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/settings/gemini-key`, {
+        method: "DELETE",
+        headers,
+      });
+      const result = await parseApiResponse(response);
+
+      if (result.ok && result.data) {
+        setMessage(result.data.message || "Gemini API key disconnected successfully.", "success");
+        updateByokUI(false);
+      } else {
+        setMessage(getApiErrorMessage(result, "Failed to disconnect Gemini API key."), "error");
+      }
+    } catch (error) {
+      setMessage(error.message || "Failed to disconnect Gemini API key.", "error");
+    }
   }
 
   const missingCriticalElements = [
@@ -1349,6 +1470,9 @@ document.addEventListener("DOMContentLoaded", () => {
       closeProfileDropdown();
       resetSummaryPanel();
       setMessage(DEFAULT_RESULT_MESSAGE, null);
+      
+      // Reset BYOK status when user signs out
+      updateByokUI(false);
     }
   }
 
@@ -1434,6 +1558,12 @@ document.addEventListener("DOMContentLoaded", () => {
           email: user?.email || null,
         });
         updateUserState();
+        
+        // Fetch BYOK status when auth state changes
+        if (user) {
+          await fetchByokStatus();
+        }
+        
         await fetchHistory();
       });
 
@@ -1481,6 +1611,14 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvent(elements.settingsThemeToggle, "click", "Settings theme toggle clicked", () => {
     const nextTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
     applyTheme(nextTheme);
+  });
+
+  bindEvent(elements.connectGeminiKey, "click", "Connect Gemini key clicked", () => {
+    connectGeminiKey();
+  });
+
+  bindEvent(elements.disconnectGeminiKey, "click", "Disconnect Gemini key clicked", () => {
+    disconnectGeminiKey();
   });
 
   bindEvent(elements.sidebarToggle, "click", "Sidebar toggle clicked", () => {
@@ -1841,7 +1979,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const usageCheck = canGenerate(files.length);
     if (!usageCheck.allowed) {
       if (usageCheck.reason === "summary_limit") {
-        setMessage("You've reached your 6-summary daily limit. Your free limit resets tomorrow.", "error");
+        setMessage("You've reached today's free limit. Come back tomorrow or use your own Gemini API key.", "error");
       } else if (usageCheck.reason === "summary_batch_limit") {
         setMessage(
           `You have ${usageCheck.remaining} summar${usageCheck.remaining === 1 ? "y" : "ies"} remaining today. Select fewer files or try again tomorrow.`,
@@ -1891,6 +2029,12 @@ document.addEventListener("DOMContentLoaded", () => {
       setStatus("Summarizing...", "summarizing");
       setMessage("Files processed successfully. Generating your summary now...", "loading");
 
+      const requestBody = {
+        files: uploadResult.data.files,
+        summaryType: elements.summaryTypeSelect.value,
+        language: elements.selectedLanguage.value,
+      };
+
       console.log(
         "Summarize request started",
         createSafeDebugPayload({
@@ -1900,6 +2044,7 @@ document.addEventListener("DOMContentLoaded", () => {
             fileCount: uploadResult.data.files?.length || 0,
             summaryType: elements.summaryTypeSelect.value,
             language: elements.selectedLanguage.value,
+            byokConnected: byokConnected,
           },
         })
       );
@@ -1910,11 +2055,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ...authHeaders,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          files: uploadResult.data.files,
-          summaryType: elements.summaryTypeSelect.value,
-          language: elements.selectedLanguage.value,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const summaryResult = await parseApiResponse(summaryResponse);
 
@@ -1928,7 +2069,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const successCount = results.filter((result) => result.status === "success").length;
       const errorCount = results.filter((result) => result.status === "error").length;
-      if (successCount > 0) {
+      if (successCount > 0 && !byokConnected) {
         incrementSummaryUsage(successCount);
       }
 

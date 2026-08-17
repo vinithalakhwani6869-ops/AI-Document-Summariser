@@ -118,8 +118,8 @@ function buildGenerationConfig(summaryType, language) {
   return config;
 }
 
-async function summarize({ prompt, requestId, summaryType = "short", language = "English" }) {
-  const apiKey = normalizeGeminiApiKey();
+async function summarize({ prompt, requestId, summaryType = "short", language = "English", customApiKey = null }) {
+  const apiKey = customApiKey || normalizeGeminiApiKey();
 
   if (!apiKey) {
     throw createProviderError(500, "Gemini API key is missing.", "missing_api_key");
@@ -137,6 +137,7 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
       validKeyFormat: keyValidFormat,
       model: resolveGeminiModel(),
       endpoint: geminiGenerateUrl(resolveGeminiModel()),
+      usingCustomKey: Boolean(customApiKey),
       ...(keyValidFormat
         ? {}
         : {

@@ -153,7 +153,7 @@ function logProviderFailure({ requestId, provider, summaryType, excerptLength, e
   );
 }
 
-async function summarizeDocument(text, fileName, summaryType, requestId, language = "English") {
+async function summarizeDocument(text, fileName, summaryType, requestId, language = "English", customApiKey = null) {
   const normalizedText = normalizeText(text);
 
   if (!normalizedText) {
@@ -176,6 +176,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
       inputLength: normalizedText.length,
       truncatedLength: excerpt.length,
       providerOrder: PROVIDERS.map((provider) => provider.name),
+      usingCustomKey: Boolean(customApiKey),
     })
   );
 
@@ -188,6 +189,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
         requestId,
         summaryType,
         language,
+        customApiKey,
       });
 
       console.log(

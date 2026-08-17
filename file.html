@@ -718,6 +718,48 @@
               </div>
             </div>
 
+            <div class="settings-section">
+              <h4 class="settings-section-title">AI Settings</h4>
+              <div class="settings-ai-section">
+                <div class="settings-row">
+                  <span>AI Provider</span>
+                  <span class="settings-value">Google Gemini</span>
+                </div>
+                
+                <div class="settings-ai-key-section">
+                  <div class="settings-ai-key-header">
+                    <span>Gemini API Key</span>
+                    <span id="byokStatus" class="settings-byok-status">Not connected</span>
+                  </div>
+                  
+                  <div id="byokDisconnected" class="settings-byok-disconnected">
+                    <div class="settings-ai-key-input">
+                      <input 
+                        type="password" 
+                        id="geminiApiKeyInput" 
+                        placeholder="Enter your Gemini API key"
+                        autocomplete="off"
+                      >
+                      <button id="connectGeminiKey" class="secondary-button" type="button">Connect Key</button>
+                    </div>
+                    <a 
+                      href="https://aistudio.google.com/apikey" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      class="settings-ai-key-link"
+                    >
+                      Get your Gemini API key →
+                    </a>
+                  </div>
+                  
+                  <div id="byokConnected" class="settings-byok-connected" hidden>
+                    <p class="settings-byok-message">Using your Gemini API key</p>
+                    <button id="disconnectGeminiKey" class="ghost-button" type="button">Disconnect</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <button id="settingsBackButton" class="ghost-button settings-back-button" type="button">Back to app</button>
           </div>
         </section>
