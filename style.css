@@ -3,6 +3,7 @@
   --sidebar-offset: 120px;
   /* Single source of horizontal inset — avoids double gutters & calc(100% - n) drift */
   --layout-pad-inline: clamp(12px, 3.5vw, 24px);
+  --layout-pad-bottom: 40px;
   --layout-max-nav: 1380px;
   --layout-max-main: 1240px;
 
@@ -129,9 +130,9 @@ html {
   scroll-behavior: smooth;
   overflow-x: clip;
   max-width: 100%;
-  /* Continue the Legal/Contact background into the browser overscroll area
+  /* Continue the Contact background into the browser overscroll area
      (replaces the old clip-path bottom extension). */
-  background-color: var(--bg-legal);
+  background-color: var(--bg-contact);
 }
 
 body {
@@ -195,7 +196,7 @@ select,
   width: 100%;
   max-width: var(--layout-max-main);
   margin-inline: auto;
-  padding-block: 0 40px;
+  padding-block: 0 var(--layout-pad-bottom);
   padding-inline: 0;
   display: grid;
   gap: 0;
@@ -1645,6 +1646,12 @@ mark {
 
 .info-sections.legal-sections {
   color: var(--text-legal);
+  /* The page ends with Contact. Cover .content-shell's bottom padding with
+     the section tier (pulled up via negative margin, net zero layout shift)
+     so the grey runs to the true end of the document — otherwise that strip
+     shows body's black background in dark mode. */
+  padding-bottom: var(--layout-pad-bottom);
+  margin-bottom: calc(-1 * var(--layout-pad-bottom));
 }
 
 /* Reserve room for the blend band so section content starts below it
@@ -1705,19 +1712,27 @@ mark {
   color: var(--text-group1);
 }
 
-/* Legal + Contact share one neutral dark grey, extended edge-to-edge */
-#privacy,
-#contact {
+/* Legal keeps the shared legal tier; Contact paints its own tier so it can
+   diverge via --bg-contact/--text-contact without affecting Privacy. */
+#privacy {
   color: var(--text-legal);
+}
+
+#contact {
+  background: var(--bg-contact);
+  color: var(--text-contact);
 }
 
 #privacy .section-tag,
 #privacy h3,
-#privacy .privacy-content p,
+#privacy .privacy-content p {
+  color: var(--text-legal);
+}
+
 #contact .section-tag,
 #contact h3,
 #contact .info-lead {
-  color: var(--text-legal);
+  color: var(--text-contact);
 }
 
 .info-section-inner {
@@ -2100,7 +2115,7 @@ mark {
 .contact-field label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-legal);
+  color: var(--text-contact);
 }
 
 .contact-field input,
@@ -2682,13 +2697,17 @@ mark {
 }
 
 @media (max-width: 480px) {
+  :root {
+    --layout-pad-bottom: 28px;
+  }
+
   .nav-shell {
     padding-top: 0;
     padding-bottom: 0;
   }
 
   .content-shell {
-    padding-block: 0 28px;
+    padding-block: 0 var(--layout-pad-bottom);
     gap: 16px;
   }
 

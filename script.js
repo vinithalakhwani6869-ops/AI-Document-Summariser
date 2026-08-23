@@ -331,15 +331,15 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         updateByokUI(false);
         setByokMessage(
-          getApiErrorMessage(result, "Could not check your Gemini API key status. Is the server reachable?"),
+          describeApiFailure(result, "byok-status", "Could not check your Gemini API key status. Is the server reachable?"),
           "error"
         );
       }
     } catch (error) {
-      console.warn("Failed to fetch BYOK status:", error);
+      logApiFailure("byok-status", null, error);
       updateByokUI(false);
       setByokMessage(
-        "Could not check your Gemini API key status. Check your connection and reopen Settings.",
+        getFetchFailureMessage(error) || "Could not check your Gemini API key status. Check your connection and reopen Settings.",
         "error"
       );
     }
@@ -425,12 +425,16 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       } else {
         updateByokUI(false);
-        setByokMessage(getApiErrorMessage(result, "Failed to connect your Gemini API key."), "error");
+        setByokMessage(
+          describeApiFailure(result, "byok-connect", "Failed to connect your Gemini API key."),
+          "error"
+        );
       }
     } catch (error) {
+      logApiFailure("byok-connect", null, error);
       updateByokUI(false);
       setByokMessage(
-        error.message || "Could not reach the server to validate your key. Please try again.",
+        getFetchFailureMessage(error) || "Could not reach the server to validate your key. Please try again.",
         "error"
       );
     } finally {
@@ -464,10 +468,17 @@ document.addEventListener("DOMContentLoaded", () => {
           "success"
         );
       } else {
-        setByokMessage(getApiErrorMessage(result, "Failed to disconnect your Gemini API key."), "error");
+        setByokMessage(
+          describeApiFailure(result, "byok-disconnect", "Failed to disconnect your Gemini API key."),
+          "error"
+        );
       }
     } catch (error) {
-      setByokMessage(error.message || "Failed to disconnect your Gemini API key.", "error");
+      logApiFailure("byok-disconnect", null, error);
+      setByokMessage(
+        getFetchFailureMessage(error) || "Failed to disconnect your Gemini API key. Check your connection and try again.",
+        "error"
+      );
     }
   }
 
@@ -541,10 +552,17 @@ document.addEventListener("DOMContentLoaded", () => {
         setContactStatus(result.data.message || "Thanks! Your message has been sent.", "success");
         elements.contactForm?.reset();
       } else {
-        throw new Error(getApiErrorMessage(result, "Could not send your message. Please try again."));
+        setContactStatus(
+          describeApiFailure(result, "contact-form", "Could not send your message. Please try again."),
+          "error"
+        );
       }
     } catch (error) {
-      setContactStatus(error.message || "Could not send your message. Please try again.", "error");
+      logApiFailure("contact-form", null, error);
+      setContactStatus(
+        getFetchFailureMessage(error) || "Could not send your message. Please try again.",
+        "error"
+      );
     } finally {
       if (button) {
         button.disabled = false;
@@ -1313,6 +1331,55 @@ document.addEventListener("DOMContentLoaded", () => {
       result?.data?.details?.providerReason ||
       fallbackMessage
     );
+  }
+
+  function logApiFailure(context, result, error) {
+    if (error) {
+      console.error(`[${context}] Request failed before a response was received:`, error);
+      return;
+    }
+
+    console.error(`[${context}] Request failed:`, {
+      status: result?.status ?? null,
+      requestId: result?.data?.requestId || null,
+      serverError: result?.data?.error || null,
+    });
+  }
+
+  function getFetchFailureMessage(error) {
+    // fetch() rejects with TypeError on network failures, DNS errors, and
+    // blocked/CORS requests. Show something actionable; details stay in console.
+    if (error instanceof TypeError) {
+      return "Could not reach the server. Check your internet connection and try again.";
+    }
+
+    return error?.message || "";
+  }
+
+  function describeApiFailure(result, context, fallbackMessage) {
+    logApiFailure(context, result, null);
+
+    const status = Number(result?.status) || 0;
+    const serverMessage = getApiErrorMessage(result, "");
+
+    switch (true) {
+      case status === 400 || status === 422:
+        return serverMessage || fallbackMessage;
+      case status === 401 || status === 403:
+        return serverMessage || "You need to sign in first.";
+      case status === 404:
+        // The API catch-all answers this when the route is missing entirely,
+        // which usually means the deployed backend predates this feature.
+        return "This feature is not available on the server yet. The deployed backend appears to be out of date.";
+      case status === 429:
+        return serverMessage || "Too many requests. Please wait a moment and try again.";
+      case status === 503:
+        return serverMessage || "The service is temporarily unavailable. Please try again later.";
+      case status >= 500:
+        return serverMessage || fallbackMessage;
+      default:
+        return serverMessage || fallbackMessage;
+    }
   }
 
   async function getOptionalAuthHeaders() {

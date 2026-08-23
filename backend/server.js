@@ -822,7 +822,7 @@ app.post("/api/contact", async (req, res, next) => {
       );
     }
 
-    const recipient = String(process.env.CONTACT_TO || "vinithalakhwani002@gmail.com");
+    const recipient = String(process.env.CONTACT_TO || "aidocsummarizer@gmail.com");
 
     try {
       await transporter.sendMail({
