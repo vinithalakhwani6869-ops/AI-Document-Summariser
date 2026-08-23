@@ -56,7 +56,7 @@ function normalizeSummaryType(summaryType) {
   return SUMMARY_TYPE_CONFIG[summaryType] ? summaryType : "short";
 }
 
-function buildUserFacingSummaryError(failureEvents = []) {
+function buildUserFacingSummaryError(failureEvents = [], usingCustomKey = false) {
   if (!failureEvents.length) {
     return DEFAULT_SUMMARY_ERROR;
   }
@@ -71,6 +71,29 @@ function buildUserFacingSummaryError(failureEvents = []) {
 
   if (codes.includes("missing_api_key") || reasons.some((reason) => reason.includes("api key is missing"))) {
     return "Missing API configuration.";
+  }
+
+  // BYOK failures must read as failures of the user's own key, not of the app.
+  if (usingCustomKey) {
+    if (
+      statuses.includes(401) ||
+      codes.includes("invalid_api_key") ||
+      codes.includes("api_key_invalid") ||
+      reasons.some((reason) => reason.includes("api key not valid") || reason.includes("unauthenticated") || reason.includes("incorrect api key"))
+    ) {
+      return "Your connected Gemini API key was rejected by Google. Open Settings and reconnect a valid key from https://aistudio.google.com/apikey.";
+    }
+
+    if (
+      codes.includes("api_not_enabled") ||
+      reasons.some((reason) => reason.includes("generative language api is not enabled") || reason.includes("service_disabled"))
+    ) {
+      return "The Generative Language API is not enabled for the Google project that owns your Gemini API key. Enable it at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com";
+    }
+
+    if (statuses.includes(429) || reasons.some((reason) => reason.includes("quota") || reason.includes("rate limit"))) {
+      return "Your Gemini API key has reached its quota or rate limit. Try again shortly or check your quotas in Google AI Studio.";
+    }
   }
 
   if (codes.includes("api_not_enabled") || reasons.some((reason) => reason.includes("generative language api is not enabled"))) {
@@ -166,6 +189,11 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
   const failureEvents = [];
   let lastError = null;
 
+  // When the caller supplies a user's own API key (BYOK), that key must be the
+  // one actually used. Never silently fall back to app-configured providers,
+  // otherwise the user thinks their quota is being used while it is not.
+  const activeProviders = customApiKey ? [geminiProvider] : PROVIDERS;
+
   console.log(
     JSON.stringify({
       requestId,
@@ -175,12 +203,12 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
       language,
       inputLength: normalizedText.length,
       truncatedLength: excerpt.length,
-      providerOrder: PROVIDERS.map((provider) => provider.name),
+      providerOrder: activeProviders.map((provider) => provider.name),
       usingCustomKey: Boolean(customApiKey),
     })
   );
 
-  for (const provider of PROVIDERS) {
+  for (const provider of activeProviders) {
     try {
       const summary = await provider.summarize({
         excerpt,
@@ -236,7 +264,7 @@ async function summarizeDocument(text, fileName, summaryType, requestId, languag
       lastReason: lastError?.message || "Unknown error",
     })
   );
-  const userMessage = buildUserFacingSummaryError(failureEvents);
+  const userMessage = buildUserFacingSummaryError(failureEvents, Boolean(customApiKey));
 
   console.error(
     JSON.stringify({

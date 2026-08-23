@@ -14,6 +14,8 @@ const cors = require("cors");
 const multer = require("multer");
 const mammoth = require("mammoth");
 const pdfParse = require("pdf-parse");
+const nodemailer = require("nodemailer");
+const { FieldValue } = require("firebase-admin/firestore");
 const {
   getFirebaseAuth,
   getFirebaseDb,
@@ -21,6 +23,7 @@ const {
   hasAdminCredentials,
   hasPublicFirebaseConfig,
 } = require("./firebaseAdmin");
+const geminiProvider = require("./providers/gemini");
 const {
   summarizeDocument,
   normalizeSummaryType,
@@ -54,6 +57,10 @@ console.log(
       String(process.env.FIREBASE_MESSAGING_SENDER_ID || "").trim()
     ),
     firebaseAppIdLoaded: Boolean(String(process.env.FIREBASE_APP_ID || "").trim()),
+    encryptionSecretConfigured: Boolean(
+      process.env.GEMINI_KEY_ENCRYPTION_SECRET && 
+      process.env.GEMINI_KEY_ENCRYPTION_SECRET !== "your_encryption_secret_here"
+    ),
   })
 );
 
@@ -62,20 +69,19 @@ const geminiKeyRaw = String(
 ).trim();
 const geminiKeyNormalized = geminiKeyRaw.replace(/^["']|["']$/g, "");
 const geminiKeyPresent = Boolean(geminiKeyNormalized && geminiKeyNormalized !== "your_key_here");
-const geminiKeyValidFormat = geminiKeyPresent && geminiKeyNormalized.startsWith("AIza");
+
+// No prefix-based format check: Google issues valid Gemini API keys in
+// multiple formats ('AIza...' legacy and 'AQ....' newer AI Studio keys).
+// Actual validity is proven by real API calls at request time.
 
 console.log(
   JSON.stringify({
     event: "gemini_key_validation",
     keyPresent: geminiKeyPresent,
     keyLength: geminiKeyNormalized.length,
-    keyPrefix: geminiKeyNormalized ? geminiKeyNormalized.slice(0, 6) : "(empty)",
-    validKeyFormat: geminiKeyValidFormat,
     hint: !geminiKeyPresent
-      ? "GEMINI_API_KEY is missing from environment."
-      : !geminiKeyValidFormat
-        ? "GEMINI_API_KEY does not look like a standard Google API key (should start with 'AIza'). Get a key from https://aistudio.google.com/apikey"
-        : "GEMINI_API_KEY format looks correct.",
+      ? "GEMINI_API_KEY is missing from environment. Get a key from https://aistudio.google.com/apikey"
+      : "GEMINI_API_KEY is configured.",
   })
 );
 
@@ -173,6 +179,15 @@ function createHttpError(status, message) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function logServerError(error, req, context = "server") {
@@ -407,31 +422,31 @@ async function getUserGeminiApiKey(userId) {
     }
 
     const encryptedKey = userDoc.data().geminiApiKey;
-    return decrypt(encryptedKey);
+    
+    try {
+      return decrypt(encryptedKey);
+    } catch (decryptionError) {
+      console.error(
+        JSON.stringify({
+          event: "byok_key_decryption_failed",
+          userId,
+          error: decryptionError.message,
+        })
+      );
+      // If decryption fails, the key might be corrupted or encryption secret changed
+      // Return null to fall back to default key
+      return null;
+    }
   } catch (error) {
     console.error(
       JSON.stringify({
-        event: "byok_key_decryption_failed",
+        event: "byok_key_retrieval_failed",
         userId,
         error: error.message,
       })
     );
     return null;
   }
-}
-
-async function resolveGeminiApiKey(req) {
-  const { user } = req;
-  
-  if (user) {
-    const userApiKey = await getUserGeminiApiKey(user.uid);
-    
-    if (userApiKey) {
-      return userApiKey;
-    }
-  }
-  
-  return geminiKeyNormalized;
 }
 
 app.get("/", (req, res) => {
@@ -476,24 +491,29 @@ app.get("/api/history", requireAuth, async (req, res, next) => {
 
 async function validateGeminiApiKey(apiKey, requestId) {
   try {
-    const model = "gemini-2.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    
-    const response = await fetch(`${url}?key=${apiKey}`, {
+    const model = geminiProvider.resolveGeminiModel();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+
+    // The key is sent in the x-goog-api-key header (never in the URL) so it
+    // cannot leak into proxy/access logs. Thinking is disabled and the token
+    // budget is tiny: this only checks that the key authenticates.
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 10,
+          temperature: 0,
+          maxOutputTokens: 16,
+          thinkingConfig: { thinkingBudget: 0 },
         },
         contents: [
           {
             parts: [
               {
-                text: "test",
+                text: "ping",
               },
             ],
           },
@@ -503,18 +523,36 @@ async function validateGeminiApiKey(apiKey, requestId) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      let errorBody = null;
+
+      try {
+        errorBody = errorText ? JSON.parse(errorText) : null;
+      } catch {
+        errorBody = null;
+      }
+
       console.error(
         JSON.stringify({
           requestId,
           event: "gemini_key_validation_failed",
           status: response.status,
-          error: errorText,
+          errorCode: errorBody?.error?.status || null,
+          errorReason:
+            errorBody?.error?.details?.[0]?.reason ||
+            (errorBody?.error?.message ? String(errorBody.error.message).slice(0, 200) : null),
         })
       );
-      return false;
+
+      return {
+        valid: false,
+        status: response.status,
+        errorCode: errorBody?.error?.status || null,
+        errorReason: errorBody?.error?.details?.[0]?.reason || null,
+        errorMessage: errorBody?.error?.message || null,
+      };
     }
 
-    return true;
+    return { valid: true };
   } catch (error) {
     console.error(
       JSON.stringify({
@@ -523,8 +561,54 @@ async function validateGeminiApiKey(apiKey, requestId) {
         error: error.message,
       })
     );
-    return false;
+    return { valid: false, status: 0, errorCode: "network_error", errorMessage: null };
   }
+}
+
+function describeGeminiKeyValidationFailure(validation) {
+  const reason = String(validation.errorReason || "").toLowerCase();
+  const code = String(validation.errorCode || "").toLowerCase();
+  const message = String(validation.errorMessage || "").toLowerCase();
+
+  if (
+    validation.status === 400 &&
+    code === "invalid_argument" &&
+    (reason.includes("api key not valid") || message.includes("api key not valid") || code.includes("api_key_invalid"))
+  ) {
+    return "Google rejected this API key. Please double-check the key you pasted from https://aistudio.google.com/apikey and try again.";
+  }
+
+  if (
+    validation.status === 401 ||
+    code === "unauthenticated" ||
+    reason.includes("api key not valid") ||
+    message.includes("api key not valid")
+  ) {
+    return "Google rejected this API key. Please double-check the key you pasted from https://aistudio.google.com/apikey and try again.";
+  }
+
+  if (
+    validation.status === 403 ||
+    code === "permission_denied" ||
+    reason.includes("service_disabled") ||
+    reason.includes("api_key_service_blocked")
+  ) {
+    if (reason.includes("service_disabled") || reason.includes("api_key_service_blocked")) {
+      return "The Generative Language API is not enabled for the Google project that owns this API key. Enable it at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com then reconnect.";
+    }
+
+    return "This API key is not allowed to use the Generative Language API. Check the key's restrictions in Google AI Studio or Cloud Console, then try again.";
+  }
+
+  if (validation.status === 429 || code === "resource_exhausted") {
+    return "This API key has reached its quota or rate limit. Wait a moment in Google AI Studio, then try connecting again.";
+  }
+
+  if (validation.status === 0) {
+    return "Could not reach Google to verify this API key. Check your connection and try again.";
+  }
+
+  return "We couldn't connect this Gemini API key. Please check your key and try again.";
 }
 
 app.post("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
@@ -536,27 +620,40 @@ app.post("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
     }
 
     const normalizedKey = apiKey.trim().replace(/^["']|["']$/g, "");
-    
-    if (!normalizedKey.startsWith("AIza")) {
-      throw createHttpError(400, "Invalid Gemini API key format. Keys should start with 'AIza'.");
-    }
+
+    // No prefix-based rejection: Google issues valid Gemini keys in multiple
+    // formats ('AIza...' legacy and 'AQ....' newer AI Studio keys). Validity
+    // is decided solely by the real Gemini API call below.
 
     console.log(
       JSON.stringify({
         requestId: req.requestId,
         event: "byok_validation_started",
         userId: req.user.uid,
-        keyPrefix: normalizedKey.slice(0, 6),
+        keyLength: normalizedKey.length,
       })
     );
 
-    const isValid = await validateGeminiApiKey(normalizedKey, req.requestId);
-    
-    if (!isValid) {
-      throw createHttpError(400, "We couldn't connect this Gemini API key. Please check your key and try again.");
+    const validation = await validateGeminiApiKey(normalizedKey, req.requestId);
+
+    if (!validation.valid) {
+      throw createHttpError(400, describeGeminiKeyValidationFailure(validation));
     }
 
-    const encryptedKey = encrypt(normalizedKey);
+    let encryptedKey;
+    try {
+      encryptedKey = encrypt(normalizedKey);
+    } catch (encryptionError) {
+      console.error(
+        JSON.stringify({
+          requestId: req.requestId,
+          event: "byok_encryption_failed",
+          error: encryptionError.message,
+        })
+      );
+      throw createHttpError(500, "Server encryption configuration is incomplete. Please contact the administrator.");
+    }
+
     const db = getFirebaseDb();
     
     await db
@@ -615,15 +712,21 @@ app.get("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
 app.delete("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
   try {
     const db = getFirebaseDb();
-    
+
+    // set + merge with FieldValue.delete() is idempotent: it works whether or
+    // not the user document/fields exist, and removes the fields entirely
+    // instead of leaving null tombstones behind.
     await db
       .collection("users")
       .doc(req.user.uid)
-      .update({
-        geminiApiKey: null,
-        geminiProvider: null,
-        updatedAt: new Date(),
-      });
+      .set(
+        {
+          geminiApiKey: FieldValue.delete(),
+          geminiProvider: FieldValue.delete(),
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
 
     console.log(
       JSON.stringify({
@@ -639,6 +742,127 @@ app.delete("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
     });
   } catch (error) {
     logServerError(error, req, "byok_delete");
+    next(error);
+  }
+});
+
+/* ---------------- Contact form ---------------- */
+
+// No application-level submission limit: legitimate users can send as many
+// messages as they need. Abuse protection is limited to the honeypot field
+// and input validation below. Any real quota is the email provider's own
+// (e.g. Gmail SMTP sending limits), which surfaces as a handled error.
+
+function getContactTransporter() {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    return null;
+  }
+
+  const port = Number(SMTP_PORT || 587);
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+  });
+}
+
+function isValidContactEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+app.post("/api/contact", async (req, res, next) => {
+  try {
+    // Honeypot: real users never see or fill the "website" field. Bots that do
+    // are silently dropped with a fake-success response.
+    if (typeof req.body?.website === "string" && req.body.website.trim()) {
+      console.log(
+        JSON.stringify({
+          requestId: req.requestId,
+          event: "contact_honeypot_triggered",
+        })
+      );
+      res.json({ ok: true, message: "Thanks! Your message has been sent." });
+      return;
+    }
+
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+
+    if (!name || name.length > 120) {
+      throw createHttpError(400, "Please enter your name (max 120 characters).");
+    }
+
+    if (!email || email.length > 254 || !isValidContactEmail(email)) {
+      throw createHttpError(400, "Please enter a valid email address.");
+    }
+
+    if (!message || message.length > 5000) {
+      throw createHttpError(400, "Please enter a message (max 5000 characters).");
+    }
+
+    const transporter = getContactTransporter();
+    if (!transporter) {
+      // Server configuration issue, not a user problem: report it honestly.
+      console.error(
+        JSON.stringify({
+          requestId: req.requestId,
+          event: "contact_smtp_not_configured",
+        })
+      );
+      throw createHttpError(
+        503,
+        "The contact form is not available right now. Please try again later."
+      );
+    }
+
+    const recipient = String(process.env.CONTACT_TO || "vinithalakhwani002@gmail.com");
+
+    try {
+      await transporter.sendMail({
+        from: `"Document Summarizer Contact" <${process.env.CONTACT_FROM || process.env.SMTP_USER}>`,
+        to: recipient,
+        replyTo: email,
+        subject: `New contact form message from ${name}`,
+        text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+        html: `<p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><hr><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
+      });
+    } catch (mailError) {
+      // Provider rejected/failed the send. Log the technical details
+      // server-side only; the user gets a clean, honest failure message.
+      console.error(
+        JSON.stringify({
+          requestId: req.requestId,
+          event: "contact_send_failed",
+          errorCode: mailError.code || null,
+          smtpResponse:
+            typeof mailError.responseCode === "number" ? mailError.responseCode : null,
+          errorMessage: String(mailError.message || "").slice(0, 300),
+        })
+      );
+      throw createHttpError(
+        502,
+        "Your message couldn't be sent right now. Please try again in a moment."
+      );
+    }
+
+    console.log(
+      JSON.stringify({
+        requestId: req.requestId,
+        event: "contact_message_sent",
+        recipient,
+      })
+    );
+
+    res.json({ ok: true, message: "Thanks! Your message has been sent." });
+  } catch (error) {
+    logServerError(error, req, "contact_route");
     next(error);
   }
 });
@@ -693,9 +917,10 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
       (target) => typeof target?.extractedText === "string" && target.extractedText.trim()
     ).length;
 
-    const geminiApiKey = await resolveGeminiApiKey(req);
-    const usingByok = geminiApiKey !== geminiKeyNormalized;
-    
+    const userKey = req.user ? await getUserGeminiApiKey(req.user.uid) : null;
+    const usingByok = Boolean(userKey);
+    const geminiApiKey = userKey || geminiKeyNormalized;
+
     console.log(
       JSON.stringify({
         requestId: req.requestId,
@@ -760,7 +985,10 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
           normalizedSummaryType,
           req.requestId,
           normalizedLanguage,
-          geminiApiKey
+          // Only a genuine user BYOK key is passed as customApiKey. The
+          // application key is resolved inside the provider chain so the
+          // default path keeps its multi-provider fallback behavior.
+          usingByok ? userKey : null
         );
         const historyItem = req.user
           ? await saveSummaryToHistory({

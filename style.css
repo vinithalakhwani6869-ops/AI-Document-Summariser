@@ -19,10 +19,16 @@
   --bg-group1: #111111;
   --text-group1: #F2F2F2;
   --info-icon-color: #818CF8;
-  --bg-legal: #1A1A1A;
-  --text-legal: #F2F2F2;
-  --bg-contact: #1A1A1A;
-  --text-contact: #F2F2F2;
+  --bg-legal: #FFFFFF;
+  --text-legal: #111111;
+  --bg-contact: #FFFFFF;
+  --text-contact: #111111;
+
+  /* Height of the soft gradient band that blends one section tier into the next.
+     Static (never animated) so prefers-reduced-motion needs no special case. */
+  --section-blend: clamp(80px, 12vw, 150px);
+  --section-pad: 40px;
+  --section-divider: #808080;
 
   /* Derived surfaces & text hierarchy */
   --panel: var(--surface);
@@ -74,15 +80,15 @@
   --bg-group1: #FFFFFF;
   --text-group1: #111111;
   --info-icon-color: #4F46E5;
-  --bg-legal: #1A1A1A;
+  --bg-legal: #262626;
   --text-legal: #F2F2F2;
-  --bg-contact: #1A1A1A;
+  --bg-contact: #262626;
   --text-contact: #F2F2F2;
 
   /* Derived surfaces & text hierarchy */
   --panel: var(--surface);
   --panel-strong: var(--surface);
-  --panel-alt: #1a1a1a;
+  --panel-alt: #262626;
   --heading: var(--text);
   --muted: var(--text-muted);
 
@@ -106,7 +112,7 @@
   --message-bg: var(--surface);
   --mark-bg: var(--accent-soft);
   --spinner-track: rgba(242, 242, 242, 0.22);
-  --dropdown-bg: #1a1a1a;
+  --dropdown-bg: #262626;
   --overlay: rgba(0, 0, 0, 0.55);
   --modal-backdrop: rgba(0, 0, 0, 0.55);
 }
@@ -123,6 +129,9 @@ html {
   scroll-behavior: smooth;
   overflow-x: clip;
   max-width: 100%;
+  /* Continue the Legal/Contact background into the browser overscroll area
+     (replaces the old clip-path bottom extension). */
+  background-color: var(--bg-legal);
 }
 
 body {
@@ -1597,38 +1606,65 @@ mark {
   position: relative;
 }
 
+/* Full-bleed background layer for each color-blocked tier. Painted by a
+   pseudo-element instead of the old box-shadow + clip-path trick, whose hard
+   clip edges produced stray hairline "dividers" at the top of the Overview
+   block and right after FAQ. Natural element edges don't alias, so the tiers
+   now join seamlessly. */
+.info-sections::before {
+  content: "";
+  position: absolute;
+  inset: 0 -100vmax;
+}
+
+.info-sections.theme-sections::before {
+  /* Page background dissolving into the Overview block, then solid */
+  background: linear-gradient(
+    to bottom,
+    var(--bg),
+    var(--bg-group1) var(--section-blend),
+    var(--bg-group1)
+  );
+}
+
+.info-sections.legal-sections::before {
+  /* Previous block dissolving into Legal/Contact, then solid to the bottom */
+  background: linear-gradient(
+    to bottom,
+    var(--bg-group1),
+    var(--bg-legal) var(--section-blend),
+    var(--bg-legal)
+  );
+}
+
 .info-sections.theme-sections {
-  background: var(--bg-group1);
   color: var(--text-group1);
   margin-top: clamp(40px, 7vw, 60px);
-  /* Extend the color-blocked background edge-to-edge without changing content alignment */
-  box-shadow: 0 0 0 100vmax var(--bg-group1);
-  clip-path: inset(0 -100vmax);
-  transition: background 220ms ease, color 220ms ease, box-shadow 220ms ease;
+  transition: color 220ms ease;
 }
 
 .info-sections.legal-sections {
-  background: var(--bg-legal);
   color: var(--text-legal);
-  /* Extend the color-blocked background edge-to-edge without changing content alignment, and all the way to bottom */
-  box-shadow: 0 0 0 100vmax var(--bg-legal);
-  clip-path: inset(0 -100vmax -100vmax);
+}
+
+/* Reserve room for the blend band so section content starts below it
+   (keeps text out of mid-gradient contrast zones without layout shift). */
+.info-sections.theme-sections .info-section:first-child,
+.info-sections.legal-sections .info-section:first-child {
+  padding-top: calc(var(--section-pad) + var(--section-blend));
+}
+
+/* One consistent divider between adjacent sections:
+   Overview→Audience→Advantages→FAQ and Legal→Get-in-touch (sibling selector).
+   Deliberately NOT between FAQ and Legal/Privacy: those blocks transition
+   naturally through the blend band without a divider. */
+.info-section + .info-section:not(#legal) {
+  border-top: 1px solid var(--section-divider);
 }
 
 .info-section {
-  padding: 40px 0;
-  /* border-top: 1px solid var(--border); */
-  border-top: none;
-}
-
-.info-section:first-child {
-  border-top: none;
-}
-
-#whoIsItFor,
-#whyIsItBetter,
-#faq {
-  border-top: 1px solid #808080;
+  position: relative; /* keeps content above the full-bleed ::before layer */
+  padding: var(--section-pad) 0;
 }
 
 /* Section background tiers — dark color-blocked sections.
@@ -2049,6 +2085,80 @@ mark {
   gap: 10px;
 }
 
+/* Contact form (Get in touch) — mirrors the app's input/button design system */
+.contact-form {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+}
+
+.contact-field {
+  display: grid;
+  gap: 6px;
+}
+
+.contact-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-legal);
+}
+
+.contact-field input,
+.contact-field textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  width: 100%;
+}
+
+.contact-field input:focus,
+.contact-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.contact-field textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.contact-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.contact-status {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.contact-status.is-success {
+  color: var(--success);
+}
+
+.contact-status.is-error {
+  color: var(--error);
+}
+
+.contact-submit {
+  justify-self: start;
+}
+
+.contact-submit[disabled] {
+  opacity: 0.7;
+  cursor: progress;
+}
+
 @media (max-width: 1024px) {
   .info-card-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -2060,8 +2170,12 @@ mark {
 }
 
 @media (max-width: 600px) {
+  :root {
+    --section-pad: 28px;
+  }
+
   .info-section {
-    padding: 28px 0;
+    padding: var(--section-pad) 0;
   }
 
   .info-card-grid,
@@ -2298,6 +2412,22 @@ mark {
   font-size: 0.9rem;
   color: var(--success);
   font-weight: 500;
+}
+
+/* Inline BYOK feedback inside the Settings page (errors/success). The global
+   message box is hidden while Settings is open, so BYOK needs its own. */
+.settings-byok-message-text {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.settings-byok-message-text.is-success {
+  color: var(--success);
+}
+
+.settings-byok-message-text.is-error {
+  color: var(--error);
 }
 
 .guest-api-key-section {

@@ -633,7 +633,7 @@
                   </details>
                   <details class="faq-item">
                     <summary class="faq-question">Can I use my own Gemini API key?</summary>
-                    <p class="faq-answer">Yes, you can configure your own Gemini API key in the backend environment settings.</p>
+                    <p class="faq-answer">Yes. Sign in, open Settings and connect your own Gemini API key under AI Settings. Your key is encrypted and stored securely, and your summaries will use your own Gemini quota instead of the free plan limits.</p>
                   </details>
                   <details class="faq-item">
                     <summary class="faq-question">Is there a free plan?</summary>
@@ -671,9 +671,32 @@
                 <p class="info-lead">
                   Questions, feedback or feature requests? We'd love to hear from you.
                 </p>
-                <div class="contact-actions">
-                  <a class="contact-email" href="mailto:vinithalakhwani002@gmail.com">vinithalakhwani002@gmail.com</a>
-                </div>
+                <form id="contactForm" class="contact-form" novalidate>
+                  <!-- Honeypot: hidden from humans; bots that fill it get silently dropped -->
+                  <input
+                    type="text"
+                    id="contactWebsite"
+                    name="website"
+                    class="contact-honeypot"
+                    tabindex="-1"
+                    autocomplete="off"
+                    aria-hidden="true"
+                  >
+                  <div class="contact-field">
+                    <label for="contactName">Name</label>
+                    <input type="text" id="contactName" name="name" required maxlength="120" placeholder="Your name">
+                  </div>
+                  <div class="contact-field">
+                    <label for="contactEmail">Email</label>
+                    <input type="email" id="contactEmail" name="email" required maxlength="254" placeholder="you@example.com">
+                  </div>
+                  <div class="contact-field">
+                    <label for="contactMessage">Message</label>
+                    <textarea id="contactMessage" name="message" rows="5" required maxlength="5000" placeholder="How can we help?"></textarea>
+                  </div>
+                  <p id="contactStatus" class="contact-status" role="status" aria-live="polite" hidden></p>
+                  <button id="contactSubmit" class="secondary-button contact-submit" type="submit">Send message</button>
+                </form>
               </div>
             </section>
           </div>
@@ -708,14 +731,6 @@
                 </div>
               </div>
               <p class="settings-usage-reset" id="settingsUsageReset">Limits reset daily.</p>
-            </div>
-
-            <div class="settings-section">
-              <h4 class="settings-section-title">API Provider</h4>
-              <div class="settings-row">
-                <span>Model</span>
-                <span class="settings-value">Gemini</span>
-              </div>
             </div>
 
             <div class="settings-section">
@@ -754,8 +769,11 @@
                   
                   <div id="byokConnected" class="settings-byok-connected" hidden>
                     <p class="settings-byok-message">Using your Gemini API key</p>
-                    <button id="disconnectGeminiKey" class="ghost-button" type="button">Disconnect</button>
+                    <p class="settings-byok-key-display">••••••••••••••••</p>
+                    <button id="disconnectGeminiKey" class="ghost-button" type="button">Remove Key</button>
                   </div>
+
+                  <p id="byokMessage" class="settings-byok-message-text" role="status" aria-live="polite" hidden></p>
                 </div>
               </div>
             </div>

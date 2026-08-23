@@ -10,8 +10,8 @@ const ENCRYPTED_POSITION = TAG_POSITION + TAG_LENGTH;
 function getKey(salt) {
   const encryptionSecret = process.env.GEMINI_KEY_ENCRYPTION_SECRET;
   
-  if (!encryptionSecret) {
-    throw new Error("GEMINI_KEY_ENCRYPTION_SECRET environment variable is not set");
+  if (!encryptionSecret || encryptionSecret === "your_encryption_secret_here") {
+    throw new Error("GEMINI_KEY_ENCRYPTION_SECRET environment variable is not set or is using the default placeholder value. Please set a strong random secret in your environment variables.");
   }
   
   return crypto.pbkdf2Sync(encryptionSecret, salt, 100000, 32, "sha512");

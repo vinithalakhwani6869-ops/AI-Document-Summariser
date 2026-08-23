@@ -127,6 +127,14 @@ document.addEventListener("DOMContentLoaded", () => {
     byokStatus: document.getElementById("byokStatus"),
     byokDisconnected: document.getElementById("byokDisconnected"),
     byokConnected: document.getElementById("byokConnected"),
+    byokMessage: document.getElementById("byokMessage"),
+    contactForm: document.getElementById("contactForm"),
+    contactName: document.getElementById("contactName"),
+    contactEmail: document.getElementById("contactEmail"),
+    contactMessage: document.getElementById("contactMessage"),
+    contactStatus: document.getElementById("contactStatus"),
+    contactSubmit: document.getElementById("contactSubmit"),
+    contactWebsite: document.getElementById("contactWebsite"),
   };
 
   const state = {
@@ -286,6 +294,24 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.settingsThemeIconPath.setAttribute("d", isDark ? themeIcons.dark : themeIcons.light);
   }
 
+  function setByokMessage(text, variant) {
+    if (!elements.byokMessage) {
+      return;
+    }
+
+    elements.byokMessage.textContent = text;
+    elements.byokMessage.classList.remove("is-success", "is-error");
+
+    if (text) {
+      elements.byokMessage.hidden = false;
+      if (variant) {
+        elements.byokMessage.classList.add(`is-${variant}`);
+      }
+    } else {
+      elements.byokMessage.hidden = true;
+    }
+  }
+
   async function fetchByokStatus() {
     if (!state.currentUser) {
       updateByokUI(false);
@@ -299,21 +325,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (result.ok && result.data) {
         updateByokUI(result.data.connected);
+        if (elements.settingsPage && !elements.settingsPage.hidden && !result.data.connected) {
+          setByokMessage("", null);
+        }
       } else {
         updateByokUI(false);
+        setByokMessage(
+          getApiErrorMessage(result, "Could not check your Gemini API key status. Is the server reachable?"),
+          "error"
+        );
       }
     } catch (error) {
       console.warn("Failed to fetch BYOK status:", error);
       updateByokUI(false);
+      setByokMessage(
+        "Could not check your Gemini API key status. Check your connection and reopen Settings.",
+        "error"
+      );
     }
   }
 
   function updateByokUI(isConnected) {
     byokConnected = isConnected;
-    
+
     if (elements.byokStatus) {
       elements.byokStatus.textContent = isConnected ? "✓ Connected" : "Not connected";
-      elements.byokStatus.classList.toggle("connected", isConnected);
+      elements.byokStatus.classList.remove("connected", "connecting");
+      if (isConnected) {
+        elements.byokStatus.classList.add("connected");
+      }
     }
 
     if (elements.byokDisconnected) {
@@ -330,24 +370,41 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function connectGeminiKey() {
-    if (!state.currentUser) {
-      setMessage("Please sign in to connect your Gemini API key.", "error");
+    // All feedback goes to the inline Settings message — the global message
+    // box is hidden while Settings is open.
+    setByokMessage("", null);
+
+    if (!state.firebaseAvailable || !state.currentUser) {
+      setByokMessage(
+        "Please sign in first, then connect your Gemini API key.",
+        "error"
+      );
       return;
     }
 
     const apiKey = elements.geminiApiKeyInput?.value?.trim();
 
     if (!apiKey) {
-      setMessage("Please enter your Gemini API key.", "error");
+      setByokMessage("Please paste your Gemini API key first.", "error");
+      elements.geminiApiKeyInput?.focus();
       return;
     }
 
-    if (!apiKey.startsWith("AIza")) {
-      setMessage("Invalid Gemini API key format. Keys should start with 'AIza'.", "error");
-      return;
-    }
+    // No client-side format guessing: Google issues keys in more than one
+    // format (e.g. legacy 'AIza...' and newer 'AQ....' AI Studio keys).
+    // The backend validates the key against the real Gemini API and its
+    // verdict decides connected/not connected.
 
     try {
+      if (elements.byokStatus) {
+        elements.byokStatus.textContent = "Connecting...";
+        elements.byokStatus.classList.remove("connected");
+      }
+      if (elements.connectGeminiKey) {
+        elements.connectGeminiKey.disabled = true;
+        elements.connectGeminiKey.textContent = "Connecting...";
+      }
+
       const headers = await getOptionalAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/settings/gemini-key`, {
         method: "POST",
@@ -360,19 +417,35 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await parseApiResponse(response);
 
       if (result.ok && result.data) {
-        setMessage(result.data.message || "Gemini API key connected successfully.", "success");
         updateByokUI(true);
+        setByokMessage(
+          result.data.message ||
+            "Your Gemini API key is connected. Summaries now use your own quota.",
+          "success"
+        );
       } else {
-        setMessage(getApiErrorMessage(result, "Failed to connect Gemini API key."), "error");
+        updateByokUI(false);
+        setByokMessage(getApiErrorMessage(result, "Failed to connect your Gemini API key."), "error");
       }
     } catch (error) {
-      setMessage(error.message || "Failed to connect Gemini API key.", "error");
+      updateByokUI(false);
+      setByokMessage(
+        error.message || "Could not reach the server to validate your key. Please try again.",
+        "error"
+      );
+    } finally {
+      if (elements.connectGeminiKey) {
+        elements.connectGeminiKey.disabled = false;
+        elements.connectGeminiKey.textContent = "Connect Key";
+      }
     }
   }
 
   async function disconnectGeminiKey() {
-    if (!state.currentUser) {
-      setMessage("Please sign in to disconnect your Gemini API key.", "error");
+    setByokMessage("", null);
+
+    if (!state.firebaseAvailable || !state.currentUser) {
+      setByokMessage("Please sign in first.", "error");
       return;
     }
 
@@ -385,13 +458,98 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await parseApiResponse(response);
 
       if (result.ok && result.data) {
-        setMessage(result.data.message || "Gemini API key disconnected successfully.", "success");
         updateByokUI(false);
+        setByokMessage(
+          result.data.message || "Gemini API key disconnected successfully.",
+          "success"
+        );
       } else {
-        setMessage(getApiErrorMessage(result, "Failed to disconnect Gemini API key."), "error");
+        setByokMessage(getApiErrorMessage(result, "Failed to disconnect your Gemini API key."), "error");
       }
     } catch (error) {
-      setMessage(error.message || "Failed to disconnect Gemini API key.", "error");
+      setByokMessage(error.message || "Failed to disconnect your Gemini API key.", "error");
+    }
+  }
+
+  function setContactStatus(text, variant) {
+    if (!elements.contactStatus) {
+      return;
+    }
+
+    elements.contactStatus.textContent = text;
+    elements.contactStatus.classList.remove("is-success", "is-error");
+
+    if (text) {
+      elements.contactStatus.hidden = false;
+      if (variant) {
+        elements.contactStatus.classList.add(`is-${variant}`);
+      }
+    } else {
+      elements.contactStatus.hidden = true;
+    }
+  }
+
+  async function submitContactForm(event) {
+    event.preventDefault();
+
+    // Honeypot filled: almost certainly a bot. Pretend success, send nothing.
+    if ((elements.contactWebsite?.value || "").trim()) {
+      setContactStatus("Thanks! Your message has been sent.", "success");
+      elements.contactForm?.reset();
+      return;
+    }
+
+    const name = (elements.contactName?.value || "").trim();
+    const email = (elements.contactEmail?.value || "").trim();
+    const message = (elements.contactMessage?.value || "").trim();
+
+    if (!name) {
+      setContactStatus("Please enter your name.", "error");
+      elements.contactName?.focus();
+      return;
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      setContactStatus("Please enter a valid email address.", "error");
+      elements.contactEmail?.focus();
+      return;
+    }
+
+    if (!message) {
+      setContactStatus("Please enter a message.", "error");
+      elements.contactMessage?.focus();
+      return;
+    }
+
+    const button = elements.contactSubmit;
+
+    try {
+      setContactStatus("", null);
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Sending...";
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, message }),
+      });
+      const result = await parseApiResponse(response);
+
+      if (result.ok && result.data?.ok) {
+        setContactStatus(result.data.message || "Thanks! Your message has been sent.", "success");
+        elements.contactForm?.reset();
+      } else {
+        throw new Error(getApiErrorMessage(result, "Could not send your message. Please try again."));
+      }
+    } catch (error) {
+      setContactStatus(error.message || "Could not send your message. Please try again.", "error");
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Send message";
+      }
     }
   }
 
@@ -1617,8 +1775,19 @@ document.addEventListener("DOMContentLoaded", () => {
     connectGeminiKey();
   });
 
+  bindEvent(elements.geminiApiKeyInput, "keydown", "Gemini API key input keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      connectGeminiKey();
+    }
+  });
+
   bindEvent(elements.disconnectGeminiKey, "click", "Disconnect Gemini key clicked", () => {
     disconnectGeminiKey();
+  });
+
+  bindEvent(elements.contactForm, "submit", "Contact form submitted", (event) => {
+    submitContactForm(event);
   });
 
   bindEvent(elements.sidebarToggle, "click", "Sidebar toggle clicked", () => {

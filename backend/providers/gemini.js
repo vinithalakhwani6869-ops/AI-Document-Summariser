@@ -125,7 +125,9 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
     throw createProviderError(500, "Gemini API key is missing.", "missing_api_key");
   }
 
-  const keyValidFormat = apiKey.startsWith("AIza");
+  // Google issues Gemini API keys in multiple formats (legacy 'AIza...' and
+  // newer 'AQ....' AI Studio keys), so no format assumption is made here.
+  // The API's own authentication result is the source of truth.
 
   console.log(
     JSON.stringify({
@@ -133,30 +135,11 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
       event: "gemini_key_check",
       keyPresent: true,
       keyLength: apiKey.length,
-      keyPrefix: apiKey.slice(0, 6),
-      validKeyFormat: keyValidFormat,
       model: resolveGeminiModel(),
       endpoint: geminiGenerateUrl(resolveGeminiModel()),
       usingCustomKey: Boolean(customApiKey),
-      ...(keyValidFormat
-        ? {}
-        : {
-            warning:
-              "GEMINI_API_KEY does not start with 'AIza'. This is likely not a valid Gemini API key. Obtain one from https://aistudio.google.com/apikey",
-          }),
     })
   );
-
-  if (!keyValidFormat) {
-    console.warn(
-      JSON.stringify({
-        requestId,
-        event: "gemini_key_invalid_format",
-        keyPrefix: apiKey.slice(0, 6),
-        hint: "API key does not start with 'AIza'. Requests to the Gemini API will likely fail with 401 UNAUTHENTICATED.",
-      })
-    );
-  }
 
   const model = resolveGeminiModel();
   const url = geminiGenerateUrl(model);
@@ -328,4 +311,5 @@ async function summarize({ prompt, requestId, summaryType = "short", language = 
 module.exports = {
   name: PROVIDER_NAME,
   summarize,
+  resolveGeminiModel,
 };

@@ -19,6 +19,7 @@
     "firebase-admin": "^13.8.0",
     "mammoth": "^1.10.0",
     "multer": "^2.0.2",
+    "nodemailer": "^9.0.5",
     "pdf-parse": "^1.1.1"
   }
 }
