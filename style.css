@@ -2539,6 +2539,8 @@ mark {
 
   .result-panel {
     padding: 24px 20px;
+    overflow-y: auto;
+    max-height: none;
   }
 
   .summary-header,
@@ -2749,6 +2751,8 @@ mark {
 
   .result-panel {
     padding: 20px 16px;
+    overflow-y: auto;
+    max-height: none;
   }
 
   .guest-actions {
