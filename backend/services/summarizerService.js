@@ -94,6 +94,14 @@ function buildUserFacingSummaryError(failureEvents = [], usingCustomKey = false)
     if (statuses.includes(429) || reasons.some((reason) => reason.includes("quota") || reason.includes("rate limit"))) {
       return "Your Gemini API key has reached its quota or rate limit. Try again shortly or check your quotas in Google AI Studio.";
     }
+
+    if (statuses.includes(400)) {
+      return "Google rejected the summarization request from your Gemini API key. Your key's project may use an older API version. Reconnect a key from https://aistudio.google.com/apikey and try again.";
+    }
+
+    if (statuses.includes(404)) {
+      return "The AI model needed for summarization is not available for your Gemini API key. The model may not be supported in your region or project. Reconnect a key from https://aistudio.google.com/apikey.";
+    }
   }
 
   if (codes.includes("api_not_enabled") || reasons.some((reason) => reason.includes("generative language api is not enabled"))) {
@@ -123,6 +131,14 @@ function buildUserFacingSummaryError(failureEvents = [], usingCustomKey = false)
 
   if (statuses.includes(429) || reasons.some((reason) => reason.includes("rate limit"))) {
     return "AI provider rate limit reached. Please try again shortly.";
+  }
+
+  if (statuses.includes(400)) {
+    return "The AI provider rejected the request format. The summarization service may need an update.";
+  }
+
+  if (statuses.includes(404)) {
+    return "The AI model required for summarization is not available. The service may need a configuration update.";
   }
 
   if (

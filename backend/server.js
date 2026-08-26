@@ -417,7 +417,23 @@ async function getUserGeminiApiKey(userId) {
     const db = getFirebaseDb();
     const userDoc = await db.collection("users").doc(userId).get();
     
-    if (!userDoc.exists || !userDoc.data().geminiApiKey) {
+    if (!userDoc.exists) {
+      console.log(
+        JSON.stringify({
+          event: "byok_key_no_user_doc",
+          userId,
+        })
+      );
+      return null;
+    }
+
+    if (!userDoc.data().geminiApiKey) {
+      console.log(
+        JSON.stringify({
+          event: "byok_key_field_missing",
+          userId,
+        })
+      );
       return null;
     }
 
