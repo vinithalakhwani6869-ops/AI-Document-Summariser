@@ -34,6 +34,21 @@ const API_BASE_URL = (() => {
 
   return "https://ai-document-summariser-j4a7.onrender.com";
 })();
+// const API_BASE_URL = (() => {
+//   if (
+//     typeof window !== "undefined" &&
+//     window.location &&
+//     (
+//       window.location.hostname === "localhost" ||
+//       window.location.hostname === "127.0.0.1" ||
+//       window.location.hostname === "::1"
+//     )
+//   ) {
+//     return "http://localhost:3000";
+//   }
+
+//   return "https://ai-document-summariser-j4a7.onrender.com";
+// })();
 const DEFAULT_RESULT_MESSAGE = "Sign in to save and revisit your summaries.";
 const THEME_STORAGE_KEY = "theme";
 const LANGUAGE_STORAGE_KEY = "summaryLanguage";
@@ -197,6 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
     summariesPerDay: 6,
   };
   const USAGE_STORAGE_KEY = "usageData";
+  const BYOK_SESSION_STORAGE_KEY = "byokGeminiKey";
   let byokConnected = false;
 
   function getTodayKey() {
@@ -221,6 +237,26 @@ document.addEventListener("DOMContentLoaded", () => {
   function saveUsageData(data) {
     try {
       localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(data));
+    } catch { /* ignore */ }
+  }
+
+  function saveSessionByokKey(apiKey) {
+    try {
+      sessionStorage.setItem(BYOK_SESSION_STORAGE_KEY, apiKey);
+    } catch { /* ignore */ }
+  }
+
+  function getSessionByokKey() {
+    try {
+      return sessionStorage.getItem(BYOK_SESSION_STORAGE_KEY) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearSessionByokKey() {
+    try {
+      sessionStorage.removeItem(BYOK_SESSION_STORAGE_KEY);
     } catch { /* ignore */ }
   }
 
@@ -314,7 +350,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function fetchByokStatus() {
     if (!state.currentUser) {
-      updateByokUI(false);
+      // Unauthenticated guests may have a validated key in sessionStorage.
+      const sessionKey = getSessionByokKey();
+      updateByokUI(Boolean(sessionKey));
+      if (!sessionKey) {
+        setByokMessage("", null);
+      }
       return;
     }
 
@@ -374,14 +415,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // box is hidden while Settings is open.
     setByokMessage("", null);
 
-    if (!state.firebaseAvailable || !state.currentUser) {
-      setByokMessage(
-        "Please sign in first, then connect your Gemini API key.",
-        "error"
-      );
-      return;
-    }
-
     const apiKey = elements.geminiApiKeyInput?.value?.trim();
 
     if (!apiKey) {
@@ -417,6 +450,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await parseApiResponse(response);
 
       if (result.ok && result.data) {
+        // For unauthenticated users, store the key in sessionStorage so
+        // it can be sent with summarize requests in the current session.
+        if (!state.currentUser) {
+          saveSessionByokKey(apiKey);
+        }
         updateByokUI(true);
         setByokMessage(
           result.data.message ||
@@ -424,6 +462,9 @@ document.addEventListener("DOMContentLoaded", () => {
           "success"
         );
       } else {
+        if (!state.currentUser) {
+          clearSessionByokKey();
+        }
         updateByokUI(false);
         setByokMessage(
           describeApiFailure(result, "byok-connect", "Failed to connect your Gemini API key."),
@@ -432,6 +473,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (error) {
       logApiFailure("byok-connect", null, error);
+      if (!state.currentUser) {
+        clearSessionByokKey();
+      }
       updateByokUI(false);
       setByokMessage(
         getFetchFailureMessage(error) || "Could not reach the server to validate your key. Please try again.",
@@ -449,7 +493,10 @@ document.addEventListener("DOMContentLoaded", () => {
     setByokMessage("", null);
 
     if (!state.firebaseAvailable || !state.currentUser) {
-      setByokMessage("Please sign in first.", "error");
+      // For unauthenticated guests, clear the session-stored key directly.
+      clearSessionByokKey();
+      updateByokUI(false);
+      setByokMessage("Gemini API key disconnected.", "success");
       return;
     }
 
@@ -462,6 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await parseApiResponse(response);
 
       if (result.ok && result.data) {
+        clearSessionByokKey();
         updateByokUI(false);
         setByokMessage(
           result.data.message || "Gemini API key disconnected successfully.",
@@ -1696,8 +1744,9 @@ document.addEventListener("DOMContentLoaded", () => {
       resetSummaryPanel();
       setMessage(DEFAULT_RESULT_MESSAGE, null);
       
-      // Reset BYOK status when user signs out
-      updateByokUI(false);
+      // Reset BYOK status when user signs out, but check for session key
+      const sessionKey = getSessionByokKey();
+      updateByokUI(Boolean(sessionKey));
     }
   }
 
@@ -2271,6 +2320,15 @@ document.addEventListener("DOMContentLoaded", () => {
         language: elements.selectedLanguage.value,
       };
 
+      // For unauthenticated users with a session-stored BYOK key, send it
+      // so the backend can use the user's own Gemini quota.
+      if (!state.currentUser && byokConnected) {
+        const sessionKey = getSessionByokKey();
+        if (sessionKey) {
+          requestBody.apiKey = sessionKey;
+        }
+      }
+
       console.log(
         "Summarize request started",
         createSafeDebugPayload({
@@ -2351,7 +2409,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function syncSidebarOffset() {
     const nav = document.querySelector(".nav-shell");
-
     if (!nav) {
       return;
     }

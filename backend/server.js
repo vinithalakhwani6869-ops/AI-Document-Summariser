@@ -491,35 +491,23 @@ app.get("/api/history", requireAuth, async (req, res, next) => {
 
 async function validateGeminiApiKey(apiKey, requestId) {
   try {
-    const model = geminiProvider.resolveGeminiModel();
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    const url = "https://generativelanguage.googleapis.com/v1beta/models";
 
-    // The key is sent in the x-goog-api-key header (never in the URL) so it
-    // cannot leak into proxy/access logs. Thinking is disabled and the token
-    // budget is tiny: this only checks that the key authenticates.
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 16,
-          thinkingConfig: { thinkingBudget: 0 },
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "x-goog-api-key": apiKey,
         },
-        contents: [
-          {
-            parts: [
-              {
-                text: "ping",
-              },
-            ],
-          },
-        ],
-      }),
-    });
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -531,17 +519,22 @@ async function validateGeminiApiKey(apiKey, requestId) {
         errorBody = null;
       }
 
-      console.error(
-        JSON.stringify({
-          requestId,
-          event: "gemini_key_validation_failed",
-          status: response.status,
-          errorCode: errorBody?.error?.status || null,
-          errorReason:
-            errorBody?.error?.details?.[0]?.reason ||
-            (errorBody?.error?.message ? String(errorBody.error.message).slice(0, 200) : null),
-        })
-      );
+      const diagnostics = {
+        requestId,
+        event: "gemini_key_validation_failed",
+        status: response.status,
+        statusText: response.statusText,
+        errorCode: errorBody?.error?.status || null,
+        errorMessage: errorBody?.error?.message
+          ? String(errorBody.error.message).slice(0, 300)
+          : null,
+        errorReason: errorBody?.error?.details?.[0]?.reason || null,
+        errorDetailMessage: errorBody?.error?.details?.[0]?.message
+          ? String(errorBody.error.details[0].message).slice(0, 300)
+          : null,
+      };
+
+      console.error(JSON.stringify(diagnostics));
 
       return {
         valid: false,
@@ -554,6 +547,16 @@ async function validateGeminiApiKey(apiKey, requestId) {
 
     return { valid: true };
   } catch (error) {
+    if (error.name === "AbortError") {
+      console.error(
+        JSON.stringify({
+          requestId,
+          event: "gemini_key_validation_timeout",
+        })
+      );
+      return { valid: false, status: 0, errorCode: "timeout", errorMessage: null };
+    }
+
     console.error(
       JSON.stringify({
         requestId,
@@ -570,20 +573,25 @@ function describeGeminiKeyValidationFailure(validation) {
   const code = String(validation.errorCode || "").toLowerCase();
   const message = String(validation.errorMessage || "").toLowerCase();
 
-  if (
-    validation.status === 400 &&
-    code === "invalid_argument" &&
-    (reason.includes("api key not valid") || message.includes("api key not valid") || code.includes("api_key_invalid"))
-  ) {
+  if (validation.status === 401 || code === "unauthenticated") {
     return "Google rejected this API key. Please double-check the key you pasted from https://aistudio.google.com/apikey and try again.";
   }
 
+  if (code === "timeout") {
+    return "Validating this key took too long. Check your connection and try again.";
+  }
+
   if (
-    validation.status === 401 ||
-    code === "unauthenticated" ||
-    reason.includes("api key not valid") ||
-    message.includes("api key not valid")
+    validation.status === 400 &&
+    (code === "invalid_argument" ||
+      message.includes("api key") ||
+      reason.includes("api key") ||
+      reason.includes("service_disabled") ||
+      reason.includes("api_key_service_blocked"))
   ) {
+    if (reason.includes("service_disabled") || reason.includes("api_key_service_blocked")) {
+      return "The Generative Language API is not enabled for the Google project that owns this API key. Enable it at https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com then reconnect.";
+    }
     return "Google rejected this API key. Please double-check the key you pasted from https://aistudio.google.com/apikey and try again.";
   }
 
@@ -608,10 +616,18 @@ function describeGeminiKeyValidationFailure(validation) {
     return "Could not reach Google to verify this API key. Check your connection and try again.";
   }
 
+  if (validation.status >= 500) {
+    return "Google's servers returned an error while verifying this key. Please try again in a moment.";
+  }
+
+  if (validation.status === 400) {
+    return "Google rejected this API key. Please double-check the key you pasted from https://aistudio.google.com/apikey and try again.";
+  }
+
   return "We couldn't connect this Gemini API key. Please check your key and try again.";
 }
 
-app.post("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
+app.post("/api/settings/gemini-key", attachOptionalUser, async (req, res, next) => {
   try {
     const { apiKey } = req.body;
     
@@ -629,52 +645,80 @@ app.post("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
       JSON.stringify({
         requestId: req.requestId,
         event: "byok_validation_started",
-        userId: req.user.uid,
+        userId: req.user?.uid || null,
         keyLength: normalizedKey.length,
       })
     );
 
     const validation = await validateGeminiApiKey(normalizedKey, req.requestId);
 
+    console.log(
+      JSON.stringify({
+        requestId: req.requestId,
+        event: "byok_validation_result",
+        valid: validation.valid,
+        status: validation.status || null,
+        errorCode: validation.errorCode || null,
+        errorReason: validation.errorReason || null,
+        errorMessage: validation.errorMessage
+          ? String(validation.errorMessage).slice(0, 300)
+          : null,
+      })
+    );
+
     if (!validation.valid) {
       throw createHttpError(400, describeGeminiKeyValidationFailure(validation));
     }
 
-    let encryptedKey;
-    try {
-      encryptedKey = encrypt(normalizedKey);
-    } catch (encryptionError) {
-      console.error(
+    // For authenticated users, persist the encrypted key in Firestore so it
+    // survives page reloads and is available across sessions.  Unauthenticated
+    // users can still validate & use their key for the current session — the
+    // frontend stores it in sessionStorage.
+    if (req.user) {
+      let encryptedKey;
+      try {
+        encryptedKey = encrypt(normalizedKey);
+      } catch (encryptionError) {
+        console.error(
+          JSON.stringify({
+            requestId: req.requestId,
+            event: "byok_encryption_failed",
+            error: encryptionError.message,
+          })
+        );
+        throw createHttpError(500, "Server encryption configuration is incomplete. Please contact the administrator.");
+      }
+
+      const db = getFirebaseDb();
+      
+      await db
+        .collection("users")
+        .doc(req.user.uid)
+        .set(
+          {
+            geminiApiKey: encryptedKey,
+            geminiProvider: "gemini",
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
+
+      console.log(
         JSON.stringify({
           requestId: req.requestId,
-          event: "byok_encryption_failed",
-          error: encryptionError.message,
+          event: "byok_key_saved",
+          userId: req.user.uid,
         })
       );
-      throw createHttpError(500, "Server encryption configuration is incomplete. Please contact the administrator.");
-    }
-
-    const db = getFirebaseDb();
-    
-    await db
-      .collection("users")
-      .doc(req.user.uid)
-      .set(
-        {
-          geminiApiKey: encryptedKey,
-          geminiProvider: "gemini",
-          updatedAt: new Date(),
-        },
-        { merge: true }
+    } else {
+      console.log(
+        JSON.stringify({
+          requestId: req.requestId,
+          event: "byok_key_validated_guest",
+          keyLength: normalizedKey.length,
+        })
       );
-
-    console.log(
-      JSON.stringify({
-        requestId: req.requestId,
-        event: "byok_key_saved",
-        userId: req.user.uid,
-      })
-    );
+    }
 
     res.json({
       success: true,
@@ -917,7 +961,13 @@ app.post("/api/summarize", attachOptionalUser, async (req, res, next) => {
       (target) => typeof target?.extractedText === "string" && target.extractedText.trim()
     ).length;
 
-    const userKey = req.user ? await getUserGeminiApiKey(req.user.uid) : null;
+    const storedUserKey = req.user ? await getUserGeminiApiKey(req.user.uid) : null;
+    // Unauthenticated guests may supply their own Gemini key in the request
+    // body (stored in sessionStorage on the client after validation).
+    const clientSuppliedKey = !storedUserKey && req.body?.apiKey
+      ? String(req.body.apiKey).trim().replace(/^["']|["']$/g, "")
+      : null;
+    const userKey = storedUserKey || clientSuppliedKey;
     const usingByok = Boolean(userKey);
     const geminiApiKey = userKey || geminiKeyNormalized;
 
