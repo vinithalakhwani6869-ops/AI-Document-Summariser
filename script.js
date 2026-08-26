@@ -1,54 +1,50 @@
-const API_BASE_URL = (() => {
-  const configured =
-    (typeof globalThis !== "undefined" &&
-      typeof globalThis.__APP_CONFIG__?.apiBaseUrl === "string" &&
-      globalThis.__APP_CONFIG__.apiBaseUrl.trim()) ||
-    "";
-
-  if (configured) {
-    return configured.replace(/\/+$/, "");
-  }
-
-  // Check if running in local development
-  if (
-    typeof window !== "undefined" &&
-    window.location &&
-    (window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1" ||
-      window.location.hostname === "::1" ||
-      window.location.hostname.match(/^192\.168\./) ||
-      window.location.hostname.match(/^10\./) ||
-      window.location.hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./))
-  ) {
-    return "http://localhost:3000";
-  }
-
-  // For production (Render, etc.), use the same origin as the frontend
-  if (
-    typeof window !== "undefined" &&
-    window.location &&
-    /^https?:$/i.test(window.location.protocol)
-  ) {
-    return window.location.origin.replace(/\/+$/, "");
-  }
-
-  return "https://ai-document-summariser-j4a7.onrender.com";
-})();
 // const API_BASE_URL = (() => {
+//   const configured =
+//     (typeof globalThis !== "undefined" &&
+//       typeof globalThis.__APP_CONFIG__?.apiBaseUrl === "string" &&
+//       globalThis.__APP_CONFIG__.apiBaseUrl.trim()) ||
+//     "";
+
+//   if (configured) {
+//     return configured.replace(/\/+$/, "");
+//   }
+//   // Check if running in local development
 //   if (
 //     typeof window !== "undefined" &&
 //     window.location &&
-//     (
-//       window.location.hostname === "localhost" ||
+//     (window.location.hostname === "localhost" ||
 //       window.location.hostname === "127.0.0.1" ||
-//       window.location.hostname === "::1"
-//     )
+//       window.location.hostname === "::1" ||
+//       window.location.hostname.match(/^192\.168\./) ||
+//       window.location.hostname.match(/^10\./) ||
+//       window.location.hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./))
 //   ) {
 //     return "http://localhost:3000";
 //   }
-
+//   // For production (Render, etc.), use the same origin as the frontend
+//   if (
+//     typeof window !== "undefined" &&
+//     window.location &&
+//     /^https?:$/i.test(window.location.protocol)
+//   ) {
+//     return window.location.origin.replace(/\/+$/, "");
+//   }
 //   return "https://ai-document-summariser-j4a7.onrender.com";
 // })();
+const API_BASE_URL = (() => {
+  if (
+    typeof window !== "undefined" &&
+    window.location &&
+    (
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "::1"
+    )
+  ) {
+    return "http://localhost:3000";
+  }
+  return "https://ai-document-summariser-j4a7.onrender.com";
+})();
 const DEFAULT_RESULT_MESSAGE = "Sign in to save and revisit your summaries.";
 const THEME_STORAGE_KEY = "theme";
 const LANGUAGE_STORAGE_KEY = "summaryLanguage";
@@ -213,7 +209,13 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   const USAGE_STORAGE_KEY = "usageData";
   const BYOK_SESSION_STORAGE_KEY = "byokGeminiKey";
-  let byokConnected = false;
+  let byokConnected = (() => {
+    try {
+      return Boolean(sessionStorage.getItem(BYOK_SESSION_STORAGE_KEY));
+    } catch {
+      return false;
+    }
+  })();
 
   function getTodayKey() {
     return new Date().toISOString().slice(0, 10);
@@ -2263,15 +2265,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const usageCheck = canGenerate(files.length);
     if (!usageCheck.allowed) {
+      if (elements.resultPanel) {
+        elements.resultPanel.hidden = false;
+      }
       if (usageCheck.reason === "summary_limit") {
+        setStatus("Free plan limit reached", "error");
         setMessage("You've reached today's free limit. Come back tomorrow or use your own Gemini API key.", "error");
       } else if (usageCheck.reason === "summary_batch_limit") {
+        setStatus("Free plan limit reached", "error");
         setMessage(
           `You have ${usageCheck.remaining} summar${usageCheck.remaining === 1 ? "y" : "ies"} remaining today. Select fewer files or try again tomorrow.`,
           "error"
         );
+      } else {
+        setStatus("Error", "error");
       }
-      setStatus("Error", "error");
       return;
     }
 
@@ -2308,7 +2316,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const uploadResult = await parseApiResponse(uploadResponse);
 
       if (!uploadResult.ok || !uploadResult.data) {
-        throw new Error(getApiErrorMessage(uploadResult, "We could not process those files."));
+        const err = new Error(getApiErrorMessage(uploadResult, "We could not process those files."));
+        err.status = uploadResult.status;
+        throw err;
       }
 
       setStatus("Summarizing...", "summarizing");
@@ -2354,7 +2364,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const summaryResult = await parseApiResponse(summaryResponse);
 
       if (!summaryResult.ok || !summaryResult.data) {
-        throw new Error(getApiErrorMessage(summaryResult, "The summary request failed."));
+        const err = new Error(getApiErrorMessage(summaryResult, "The summary request failed."));
+        err.status = summaryResult.status;
+        throw err;
       }
 
       const results = Array.isArray(summaryResult.data.results) ? summaryResult.data.results : [];
@@ -2378,7 +2390,13 @@ document.addEventListener("DOMContentLoaded", () => {
       await fetchHistory();
     } catch (error) {
       hideLoadingState();
-      setStatus("Error", "error");
+      const isLimitError =
+        error.status === 429 ||
+        (typeof error.message === "string" && error.message.toLowerCase().includes("free limit"));
+      if (elements.resultPanel) {
+        elements.resultPanel.hidden = false;
+      }
+      setStatus(isLimitError ? "Free plan limit reached" : "Error", "error");
       setSummaryState(
         files.map((file) => ({
           fileName: file.name,
@@ -2406,6 +2424,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderSelectedFiles([]);
   renderHistory([]);
   updateUserState();
+  fetchByokStatus();
 
   function syncSidebarOffset() {
     const nav = document.querySelector(".nav-shell");
