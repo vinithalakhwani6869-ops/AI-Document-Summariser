@@ -100,7 +100,7 @@ function buildUserFacingSummaryError(failureEvents = [], usingCustomKey = false)
     }
 
     if (statuses.includes(404)) {
-      return "The AI model needed for summarization is not available for your Gemini API key. The model may not be supported in your region or project. Reconnect a key from https://aistudio.google.com/apikey.";
+      return "The AI model needed for summarization is not available. This may be due to model deprecation or API changes. The application may need a configuration update.";
     }
   }
 

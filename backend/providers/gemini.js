@@ -6,8 +6,8 @@ function resolveGeminiModel() {
     return String(configured).trim();
   }
 
-  /* Default aligned with current Generative Language REST docs (gemini-2.0-* deprecation). */
-  return "gemini-2.5-flash";
+  /* Default aligned with current Generative Language REST docs (gemini-2.5-flash deprecated). */
+  return "gemini-3.5-flash";
 }
 
 function geminiGenerateUrl(model) {
