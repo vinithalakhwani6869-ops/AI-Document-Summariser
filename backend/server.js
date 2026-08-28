@@ -906,10 +906,23 @@ app.post("/api/contact", async (req, res, next) => {
           errorMessage: String(mailError.message || "").slice(0, 300),
         })
       );
-      throw createHttpError(
+      // Re-throw as a clean 502 for the user, but carry the safe diagnostic
+      // fields from the underlying SMTP/provider error so the outer
+      // logServerError (context: contact_route) also reports the real cause.
+      // Only non-secret values are forwarded (error code, SMTP response code,
+      // and a truncated message that never contains the password/credentials).
+      const contactError = createHttpError(
         502,
         "Your message couldn't be sent right now. Please try again in a moment."
       );
+      contactError.code = mailError.code || null;
+      contactError.provider = "SMTP";
+      contactError.details = {
+        smtpResponse:
+          typeof mailError.responseCode === "number" ? mailError.responseCode : null,
+        errorMessage: String(mailError.message || "").slice(0, 300),
+      };
+      throw contactError;
     }
 
     console.log(
