@@ -1360,6 +1360,11 @@ input[type="file"] {
 .summary-paragraph,
 .summary-bullet {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .summary-bullet {
@@ -1368,6 +1373,7 @@ input[type="file"] {
   background: var(--panel-alt);
   border: 1px solid var(--border);
   color: var(--text);
+  box-sizing: border-box;
 }
 
 mark {

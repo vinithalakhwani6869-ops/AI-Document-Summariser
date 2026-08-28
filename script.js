@@ -1778,11 +1778,20 @@ document.addEventListener("DOMContentLoaded", () => {
       logDebug("History fetched", { count: items.length });
       renderHistory(items);
 
-      if (items.length && (!state.historyRestored || !state.selectedHistoryId)) {
-        restoreLatestSummary(items[0]);
-        state.historyRestored = true;
-      } else if (!items.length) {
-        resetSummaryPanel();
+      // The history refresh must never replace the summary the user is
+      // currently viewing with only the latest saved entry (or clear it). This
+      // happens right after sign-in/sign-up (anonymous summaries would be lost)
+      // and after generating new summaries (only the last one would remain).
+      // Only auto-restore/reset on a fresh load when there is nothing displayed
+      // yet. The history sidebar is still populated above, so saved items stay
+      // reachable by clicking.
+      if (state.latestSummaryCards.length === 0) {
+        if (items.length && (!state.historyRestored || !state.selectedHistoryId)) {
+          restoreLatestSummary(items[0]);
+          state.historyRestored = true;
+        } else if (!items.length) {
+          resetSummaryPanel();
+        }
       }
     } catch (error) {
       elements.historyList.innerHTML = `<p class="history-empty">${escapeHtml(
