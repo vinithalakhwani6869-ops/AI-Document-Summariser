@@ -52,7 +52,7 @@ Environment variables are not included for security reasons.
 - Firestore Database
 
 ### AI
-- Cohere API
+- Gemini API
 
 ### Deployment
 - Render
@@ -114,6 +114,10 @@ COHERE_API_KEY=your_api_key
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_CLIENT_EMAIL=your_client_email
 FIREBASE_PRIVATE_KEY=your_private_key
+
+# Contact form delivery (Web3Forms). Create a form at https://web3forms.com to
+# get your access key. It is a public key (safe to expose) and not secret.
+WEB3FORMS_ACCESS_KEY=your_web3forms_access_key
 ```
 
 ### 5. Start backend server

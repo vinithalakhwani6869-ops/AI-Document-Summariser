@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const dns = require("dns");
 const { randomUUID } = require("crypto");
 const dotenv = require("dotenv");
 
@@ -15,7 +14,6 @@ const cors = require("cors");
 const multer = require("multer");
 const mammoth = require("mammoth");
 const pdfParse = require("pdf-parse");
-const nodemailer = require("nodemailer");
 const { FieldValue } = require("firebase-admin/firestore");
 const {
   getFirebaseAuth,
@@ -474,6 +472,10 @@ app.get("/api/config", (req, res) => {
   res.json({
     firebase: getPublicFirebaseConfig(),
     firebaseConfigured: hasPublicFirebaseConfig(),
+    // Public (non-secret) Web3Forms access key used for client-side contact
+    // form submission. Web3Forms keys are intentionally public aliases for
+    // the destination email address.
+    web3formsAccessKey: String(process.env.WEB3FORMS_ACCESS_KEY || "").trim(),
   });
 });
 
@@ -803,168 +805,6 @@ app.delete("/api/settings/gemini-key", requireAuth, async (req, res, next) => {
     });
   } catch (error) {
     logServerError(error, req, "byok_delete");
-    next(error);
-  }
-});
-
-/* ---------------- Contact form ---------------- */
-
-// No application-level submission limit: legitimate users can send as many
-// messages as they need. Abuse protection is limited to the honeypot field
-// and input validation below. Any real quota is the email provider's own
-// (e.g. Gmail SMTP sending limits), which surfaces as a handled error.
-
-// Resolve the SMTP host up front so we can force an IPv4 connection. Gmail's
-// hostnames resolve to IPv6 addresses (e.g. 2404:6800:...), and Render's free
-// tier has no IPv6 route, so a direct connect fails with ESOCKET/ENETUNREACH.
-// Locally this often works because the OS/Node falls back to IPv4; on Render
-// it does not. By connecting to an IPv4 literal while keeping the original
-// hostname for TLS (servername uses SNI and certificate validation), the
-// certificate still verifies correctly.
-async function getContactTransporter() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    return null;
-  }
-
-  const port = Number(SMTP_PORT || 587);
-
-  const transportOptions = {
-    host: SMTP_HOST,
-    port,
-    secure: port === 465,
-    auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS,
-    },
-  };
-
-  try {
-    const { address } = await dns.promises.lookup(SMTP_HOST, { family: 4 });
-    transportOptions.host = address;
-    transportOptions.tls = {
-      servername: SMTP_HOST,
-    };
-  } catch (dnsError) {
-    // If IPv4 resolution fails, keep the original hostname and let Nodemailer
-    // handle it as usual. Log a safe notice only.
-    console.warn(
-      JSON.stringify({
-        event: "smtp_ipv4_resolution_failed",
-        host: SMTP_HOST,
-        errorMessage: String(dnsError.message || "").slice(0, 200),
-      })
-    );
-  }
-
-  return nodemailer.createTransport(transportOptions);
-}
-
-function isValidContactEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
-}
-
-app.post("/api/contact", async (req, res, next) => {
-  try {
-    // Honeypot: real users never see or fill the "website" field. Bots that do
-    // are silently dropped with a fake-success response.
-    if (typeof req.body?.website === "string" && req.body.website.trim()) {
-      console.log(
-        JSON.stringify({
-          requestId: req.requestId,
-          event: "contact_honeypot_triggered",
-        })
-      );
-      res.json({ ok: true, message: "Thanks! Your message has been sent." });
-      return;
-    }
-
-    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
-    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
-
-    if (!name || name.length > 120) {
-      throw createHttpError(400, "Please enter your name (max 120 characters).");
-    }
-
-    if (!email || email.length > 254 || !isValidContactEmail(email)) {
-      throw createHttpError(400, "Please enter a valid email address.");
-    }
-
-    if (!message || message.length > 5000) {
-      throw createHttpError(400, "Please enter a message (max 5000 characters).");
-    }
-
-    const transporter = await getContactTransporter();
-    if (!transporter) {
-      // Server configuration issue, not a user problem: report it honestly.
-      console.error(
-        JSON.stringify({
-          requestId: req.requestId,
-          event: "contact_smtp_not_configured",
-        })
-      );
-      throw createHttpError(
-        503,
-        "The contact form is not available right now. Please try again later."
-      );
-    }
-
-    const recipient = String(process.env.CONTACT_TO || "aidocsummarizer@gmail.com");
-
-    try {
-      await transporter.sendMail({
-        from: `"Document Summarizer Contact" <${process.env.CONTACT_FROM || process.env.SMTP_USER}>`,
-        to: recipient,
-        replyTo: email,
-        subject: `New contact form message from ${name}`,
-        text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-        html: `<p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><hr><p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
-      });
-    } catch (mailError) {
-      // Provider rejected/failed the send. Log the technical details
-      // server-side only; the user gets a clean, honest failure message.
-      console.error(
-        JSON.stringify({
-          requestId: req.requestId,
-          event: "contact_send_failed",
-          errorCode: mailError.code || null,
-          smtpResponse:
-            typeof mailError.responseCode === "number" ? mailError.responseCode : null,
-          errorMessage: String(mailError.message || "").slice(0, 300),
-        })
-      );
-      // Re-throw as a clean 502 for the user, but carry the safe diagnostic
-      // fields from the underlying SMTP/provider error so the outer
-      // logServerError (context: contact_route) also reports the real cause.
-      // Only non-secret values are forwarded (error code, SMTP response code,
-      // and a truncated message that never contains the password/credentials).
-      const contactError = createHttpError(
-        502,
-        "Your message couldn't be sent right now. Please try again in a moment."
-      );
-      contactError.code = mailError.code || null;
-      contactError.provider = "SMTP";
-      contactError.details = {
-        smtpResponse:
-          typeof mailError.responseCode === "number" ? mailError.responseCode : null,
-        errorMessage: String(mailError.message || "").slice(0, 300),
-      };
-      throw contactError;
-    }
-
-    console.log(
-      JSON.stringify({
-        requestId: req.requestId,
-        event: "contact_message_sent",
-        recipient,
-      })
-    );
-
-    res.json({ ok: true, message: "Thanks! Your message has been sent." });
-  } catch (error) {
-    logServerError(error, req, "contact_route");
     next(error);
   }
 });

@@ -163,6 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
     summaryTypeMenuOpen: false,
     languageMenuOpen: false,
     dropzoneDragDepth: 0,
+    web3formsAccessKey: "",
   };
 
   const summaryTypeOptions = [
@@ -550,6 +551,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function fetchWeb3formsAccessKey() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/config`);
+      const result = await parseApiResponse(response);
+      const key = result.data?.web3formsAccessKey || "";
+      return String(key).trim();
+    } catch (error) {
+      console.warn("Could not load the contact form access key.", error);
+      return "";
+    }
+  }
+
   async function submitContactForm(event) {
     event.preventDefault();
 
@@ -591,19 +604,54 @@ document.addEventListener("DOMContentLoaded", () => {
         button.textContent = "Sending...";
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/contact`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, message }),
-      });
-      const result = await parseApiResponse(response);
+      let accessKey = state.web3formsAccessKey;
+      if (!accessKey) {
+        accessKey = await fetchWeb3formsAccessKey();
+        state.web3formsAccessKey = accessKey;
+      }
+      if (!accessKey) {
+        throw new Error("The contact form is not configured yet. Please try again later.");
+      }
 
-      if (result.ok && result.data?.ok) {
-        setContactStatus(result.data.message || "Thanks! Your message has been sent.", "success");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+      let response;
+      try {
+        response = await fetch("https://api.web3forms.com/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            access_key: accessKey,
+            name,
+            email,
+            message,
+            subject: "New contact form message from the Document Summarizer",
+            from_name: name,
+            botcheck: "",
+          }),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) {
+          throw new Error("The service took too long to respond. Please try again.");
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const result = await parseApiResponse(response);
+      const submitted = response.ok && result.data?.success === true;
+
+      if (submitted) {
+        setContactStatus("Thanks! Your message has been sent.", "success");
         elements.contactForm?.reset();
       } else {
+        const providerMessage =
+          result.data?.body?.message || result.data?.message || "";
         setContactStatus(
-          describeApiFailure(result, "contact-form", "Could not send your message. Please try again."),
+          providerMessage || "Could not send your message. Please try again.",
           "error"
         );
       }
