@@ -2,7 +2,7 @@
 
 An AI-powered web application that converts PDF, TXT, and DOCX files into clean, readable summaries within seconds.
 
-## Live Demo
+## Live Link
 
 https://ai-document-summariser-j4a7.onrender.com
 
@@ -13,7 +13,7 @@ https://ai-document-summariser-j4a7.onrender.com
 This project requires your own:
 
 - Firebase configuration
-- Cohere API key
+- Gemini API key
 
 Environment variables are not included for security reasons.
 
@@ -62,16 +62,17 @@ Environment variables are not included for security reasons.
 ## Screenshots
 
 ### Homepage
-![Homepage](./screenshots/homepage.png)
+![Homepage](./screenshots/Homepage.png)
 
 ### Upload Interface
-![Upload](./screenshots/upload2.png)
+![Upload](./screenshots/Upload.png)
 
 ### Generated Summary
 ![login](./screenshots/login.png)
 
 ### Mobile View
-![Mobile View](./screenshots/mobileview.png)
+![Mobile View](./screenshots/Mobileview.jpg)
+![Mobile View](./screenshots/Mobileview1.jpg)
 
 ---
 
@@ -107,9 +108,15 @@ npm install
 Create a `.env` file inside the backend folder and add:
 
 ```env
-PORT=5000
+PORT=3000
 
-COHERE_API_KEY=your_api_key
+GEMINI_API_KEY=your_api_key
+COHERE_API_KEY=your_api_key (Optional)
+HUGGINGFACE_API_KEY=your_api_key (Optional)
+
+GEMINI_KEY_ENCRYPTION_SECRET=your_encryption_secret_here
+
+WEB3FORMS_ACCESS_KEY=your_web3forms_access_key
 
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_CLIENT_EMAIL=your_client_email
@@ -129,48 +136,27 @@ npm start
 Backend will run on:
 
 ```txt
-http://localhost:5000
+http://localhost:3000
 ```
 
 ---
 
 ## Frontend Setup
 
-### 6. Open a new terminal
+The frontend is built with HTML, CSS, and JavaScript.
+So you can open the project root in your code editor and run the frontend using a local development server.
 
-```bash
-cd frontend
-```
+### 6. Firebase Configuration
 
-### 7. Install dependencies
+The application uses Firebase Authentication.
+Therefore it requires the following Firebase Configuration :
 
-```bash
-npm install
-```
-
-### 8. Create `.env`
-
-Create a `.env` file inside the frontend folder and add:
-
-```env
 FIREBASE_API_KEY=your_key
 FIREBASE_AUTH_DOMAIN=your_domain
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_STORAGE_BUCKET=your_bucket
 FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
-```
-
-### 9. Start frontend
-
-```bash
-npm run dev
-```
-
-Frontend will run on:
-
-```txt
-http://localhost:5173
 ```
 
 > Note:
