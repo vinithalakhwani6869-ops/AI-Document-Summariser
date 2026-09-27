@@ -136,27 +136,48 @@ npm start
 Backend will run on:
 
 ```txt
-http://localhost:3000
+http://localhost:5000
 ```
 
 ---
 
 ## Frontend Setup
 
-The frontend is built with HTML, CSS, and JavaScript.
-So you can open the project root in your code editor and run the frontend using a local development server.
+### 6. Open a new terminal
 
-### 6. Firebase Configuration
+```bash
+cd frontend
+```
 
-The application uses Firebase Authentication.
-Therefore it requires the following Firebase Configuration :
+### 7. Install dependencies
 
+```bash
+npm install
+```
+
+### 8. Create `.env`
+
+Create a `.env` file inside the frontend folder and add:
+
+```env
 FIREBASE_API_KEY=your_key
 FIREBASE_AUTH_DOMAIN=your_domain
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_STORAGE_BUCKET=your_bucket
 FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
+```
+
+### 9. Start frontend
+
+```bash
+npm run dev
+```
+
+Frontend will run on:
+
+```txt
+http://localhost:5173
 ```
 
 > Note:

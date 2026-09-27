@@ -89,6 +89,8 @@ document.addEventListener("DOMContentLoaded", () => {
     fileMeta: document.getElementById("fileMeta"),
     fileNameText: document.getElementById("fileName"),
     form: document.getElementById("uploadform"),
+    googleSignInButton: document.getElementById("googleSignInButton"),
+    googleSignInLabel: document.getElementById("googleSignInLabel"),
     guestActions: document.getElementById("guestActions"),
     historyList: document.getElementById("historyList"),
     historySidebar: document.getElementById("historySidebar"),
@@ -1045,6 +1047,17 @@ document.addEventListener("DOMContentLoaded", () => {
         : "Sign up";
   }
 
+  function setGoogleSignInLoadingState(isLoading) {
+    if (!elements.googleSignInButton || !elements.googleSignInLabel) {
+      return;
+    }
+
+    elements.googleSignInButton.disabled = isLoading;
+    elements.googleSignInLabel.textContent = isLoading
+      ? "Connecting to Google..."
+      : "Continue with Google";
+  }
+
   function applyTheme(theme) {
     const isDark = theme === "dark";
     document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
@@ -1998,6 +2011,9 @@ document.addEventListener("DOMContentLoaded", () => {
   bindEvent(elements.signupTab, "click", "Signup tab clicked", () => {
     setAuthMode("signup");
   });
+  bindEvent(elements.googleSignInButton, "click", "Google sign-in clicked", () => {
+    signInWithGoogle();
+  });
 
   bindEvent(elements.summaryTypeButton, "click", "Summary type toggle clicked", (event) => {
     event.stopPropagation();
@@ -2270,6 +2286,85 @@ document.addEventListener("DOMContentLoaded", () => {
       setAuthLoadingState(false);
     }
   });
+
+  // Google sign-in reuses the exact same Firebase app/auth instance as the
+  // email/password flow above, so onAuthStateChanged handles the rest: the
+  // user object, profile UI, history and BYOK all behave identically once
+  // Firebase reports the new sign-in.
+  function getGoogleSignInErrorMessage(error) {
+    switch (error?.code) {
+      // The email already belongs to an email/password account. We deliberately
+      // do not link or overwrite it, so point the user at the original method.
+      case "auth/account-exists-with-different-credential":
+      case "auth/email-already-in-use":
+        return "An account already exists with this email. Please sign in with the email and password you used originally.";
+      case "auth/popup-blocked":
+      case "auth/operation-not-supported-in-this-environment":
+        return "Your browser blocked the Google sign-in window. Allow pop-ups for this site, or use email and password.";
+      case "auth/unauthorized-domain":
+        return "This domain is not authorized for Google sign-in yet. Please use email and password.";
+      case "auth/operation-not-allowed":
+        return "Google sign-in is not enabled for this app yet. Please use email and password.";
+      case "auth/network-request-failed":
+        return "Network error while contacting Google. Check your connection and try again.";
+      case "auth/too-many-requests":
+        return "Too many sign-in attempts. Please wait a moment and try again.";
+      // Dismissing the popup is a normal user action rather than a failure, so
+      // the dialog is left untouched and stays fully usable.
+      case "auth/popup-closed-by-user":
+      case "auth/cancelled-popup-request":
+        return "";
+      default:
+        return error?.message || "Google sign-in failed. Please try again.";
+    }
+  }
+
+  async function signInWithGoogle() {
+    const isReady = await ensureFirebaseReady();
+
+    if (!isReady) {
+      if (elements.authWarning) {
+        elements.authWarning.hidden = false;
+      }
+
+      return;
+    }
+
+    const GoogleAuthProvider = state.firebaseModules.GoogleAuthProvider;
+    const signInWithPopup = state.firebaseModules.signInWithPopup;
+
+    if (!GoogleAuthProvider || !signInWithPopup) {
+      if (elements.authMessage) {
+        elements.authMessage.textContent =
+          "Google sign-in is unavailable right now. Please use email and password.";
+      }
+
+      return;
+    }
+
+    try {
+      setGoogleSignInLoadingState(true);
+
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+
+      await signInWithPopup(state.firebaseAuth, provider);
+      logDebug("Google sign-in succeeded");
+      closeAuthModal();
+    } catch (error) {
+      const message = getGoogleSignInErrorMessage(error);
+
+      if (message) {
+        logDebug("Google sign-in failed", { code: error?.code || "unknown" });
+
+        if (elements.authMessage) {
+          elements.authMessage.textContent = message;
+        }
+      }
+    } finally {
+      setGoogleSignInLoadingState(false);
+    }
+  }
 
   bindEvent(elements.summaryResults, "click", "Summary card action clicked", async (event) => {
     const copyButton = event.target.closest("[data-copy-summary]");
